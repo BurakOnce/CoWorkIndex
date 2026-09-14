@@ -1,149 +1,152 @@
 # CoWork Index
 
-Çalışanların AI araçlarını nasıl kullandığını, içerik değil davranış
-üzerinden ölçen kurumsal analiz platformu -- **prompt içeriğini hiç
-okumadan/saklamadan**, yalnızca davranışsal meta-sinyalleri kullanarak bir
-kullanım olgunluk skoru ve davranış arketipi üreten API + dashboard.
+An enterprise analytics platform that measures how employees use AI tools --
+based on behavior, not content. An API + dashboard that produces a usage
+maturity score and a behavior archetype for each employee, **without ever
+reading or storing prompt content**, using only behavioral meta-signals.
 
-## Neden Bu Proje?
+## Why This Project?
 
-Şirketler çalışanlarına ChatGPT, Copilot, Claude, Cursor gibi AI araçlarını
-hızla yayıyor, ama "bu araçlara yaptığımız yatırımın karşılığını alıyor
-muyuz, kim gerçekten verimli kullanıyor, kim yüzeysel kopyala-yapıştır
-yapıyor" sorusuna cevap verecek bir yöntemleri yok. Bunu ölçmenin en
-doğrudan yolu -- prompt loglarını okumak -- hem ciddi bir gizlilik ihlali
-hem de ölçeklenebilir değil.
+Companies are rapidly rolling out AI tools like ChatGPT, Copilot, Claude,
+and Cursor to their employees, but they have no way to answer "are we
+getting a return on this investment, who is actually using it effectively,
+who is just shallow copy-pasting?" The most direct way to measure this --
+reading prompt logs -- is both a serious privacy violation and doesn't
+scale.
 
-CoWork Index bu soruyu, **prompt veya AI çıktısının tek bir karakterini bile
-görmeden** cevaplamak için var: yalnızca kabul/red oranı, diyalog derinliği,
-harcanan token, sonucun üretime mi gittiği yoksa terk mi edildiği gibi
-davranışsal meta-sinyalleri toplayıp her çalışan için 0-100 arası bir
-**kullanım olgunluk skoru** ve 5 davranış arketipinden birini üretir. Hedef
-kitle İK/People Analytics ekipleri, mühendislik yöneticileri ve AI adoption'ı
-takip eden herkes.
+CoWork Index exists to answer this question **without ever seeing a single
+character of a prompt or AI output**: it collects only behavioral
+meta-signals -- acceptance/rejection rate, dialogue depth, tokens spent,
+whether the outcome shipped to production or was abandoned -- and produces
+a **usage maturity score** (0-100) and one of 5 behavior archetypes for
+each employee. The target audience is HR/People Analytics teams,
+engineering managers, and anyone tracking AI adoption.
 
-## Ne Sunuyor?
+## What It Offers
 
-- **Kullanım Olgunluk Skoru**: 6 boyutta (kullanım yoğunluğu, onay/red
-  dinamiği, diyalog derinliği, iletişim üslubu, sonuç takibi, eleştirel
-  kullanım) ağırlıklı bir kompozit skor.
-- **5 Davranış Arketipi**: Kopyala-Yapıştırcı, Diyalog Ortağı, Şüpheci, Emir
-  Verici, Pasif Kullanıcı -- kurallar `config/archetype_rules.yaml`'da.
-- **Şirket / Takım / Çalışan bazlı dashboard**: genel görünüm, takım
-  karşılaştırma, çalışan detayı, arketip dağılımı, zaman içi trendler.
-- **Maliyet & Verimlilik katmanı**: token/USD bazlı maliyet ve "verimli
-  token oranı" -- hangi kullanımın gerçekten sonuç ürettiği, hangisinin
-  israf olduğu.
-- **Veri kalitesi denetimleri**: write-time doğrulama + periyodik audit.
-- **Toplu veri girişi**: tek tıkla demo verisi veya Excel ile gerçek veri
-  içe aktarma.
-- **EN/TR dil desteği**: dashboard sağ üstten dil değiştirilebilir.
+- **Usage Maturity Score**: a weighted composite score across 6 dimensions
+  (usage intensity, approval/rejection dynamics, dialogue depth,
+  communication tone, outcome tracking, critical usage).
+- **5 Behavior Archetypes**: Copy-Paster, Dialogue Partner, Skeptic,
+  Commander, Passive User -- rules defined in `config/archetype_rules.yaml`.
+- **Company / team / employee dashboards**: overview, team comparison,
+  employee detail, archetype distribution, time trends.
+- **Cost & efficiency layer**: token/USD-based cost and an "efficient
+  token ratio" -- which usage actually produced results vs. which was
+  wasted.
+- **Data quality checks**: write-time validation + periodic audits.
+- **Bulk data ingestion**: one-click demo data generation or real data
+  import via Excel.
+- **EN/TR language support**: switchable from the top-right of the
+  dashboard.
 
-Skorlar bir batch job ile değil, event geldikçe (near-real-time) güncellenir
--- bu proje bir veri ambarı değil, bir **servistir**. Mimari kararların
-gerekçesi (neden medalyon/batch değil de event-driven OLTP mimarisi
-seçildiği dahil) için [docs/architecture.md](docs/architecture.md)'e bakın.
+Scores are not updated by a batch job -- they update as events arrive
+(near-real-time). This project is not a data warehouse, it's a
+**service**. For the reasoning behind the architectural decisions
+(including why an event-driven OLTP architecture was chosen over a
+medallion/batch approach), see [docs/architecture.md](docs/architecture.md).
 
-## Veri Nasıl Girer? (Dashboard > "Veri Yükleme")
+## How Does Data Get In? (Dashboard > "Data Ingestion")
 
-Şirket kadrosu şimdilik sabit boyutlu: **50 çalışan** (`src/demo_data.py`
-içindeki `FIXED_EMPLOYEE_COUNT`). "Veri Yükleme" sekmesi (dashboard'da en
-sağdaki sekme) bu 50 çalışana yalnızca *kullanım verisi* (event) ekler --
-yeni çalışan oluşturmaz. İki yoldan:
+The company roster is currently fixed-size: **50 employees**
+(`FIXED_EMPLOYEE_COUNT` in `src/demo_data.py`). The "Data Ingestion" tab
+(the rightmost tab in the dashboard) only adds *usage data* (events) to
+these 50 employees -- it never creates new employees. Two ways:
 
-1. **Hızlı Demo Verisi** -- tek tıkla sentetik/test kullanım verisi üretir
-   (seçilen ay sayısı kadar geçmiş, haftalık çözünürlükte). Sunum ve
-   geliştirme amaçlıdır; `POST /ingestion/seed-demo-data` uç noktasını
-   kullanır ve DB'ye doğrudan yazdığı için (HTTP round-trip olmadan) hızlıdır.
-2. **Gerçek Veri İçe Aktarma (Excel)** -- "Şablon İndir" ile mevcut 50
-   çalışanı referans sayfasında listeleyen, doldurulacak tek bir `events`
-   sayfası içeren bir `.xlsx` şablonu indirilir, doldurulup geri yüklenir
-   (`POST /ingestion/import-excel`). Bu, gerçek bir şirkette bu verinin
-   genelde bir AI gateway/tarayıcı eklentisinin periyodik olarak dışa
-   aktardığı davranışsal logdan geldiği senaryoyu temsil eder --
-   **şablonda da hiçbir içerik/metin kolonu yoktur**. Çalışanlar yalnızca
-   mevcut kadro içinden ada göre eşleştirilir (bulunamazsa satır hata
-   olarak raporlanır, yeni çalışan oluşturulmaz).
+1. **Quick Demo Data** -- generates synthetic/test usage data with one
+   click (history for the selected number of months, at weekly
+   resolution). Intended for demos and development; uses the
+   `POST /ingestion/seed-demo-data` endpoint and is fast since it writes
+   directly to the DB (no HTTP round-trip).
+2. **Real Data Import (Excel)** -- "Download Template" downloads an
+   `.xlsx` template listing the existing 50 employees on a reference
+   sheet, with a single `events` sheet to fill in and upload
+   (`POST /ingestion/import-excel`). This represents the scenario where,
+   in a real company, this data typically comes from a periodic export
+   from an AI gateway/browser extension's behavioral log --
+   **the template contains no content/text column either**. Employees are
+   matched only by name against the existing roster (an unmatched row is
+   reported as an error, no new employee is created).
 
-## Maliyet & Verimlilik (Token/USD)
+## Cost & Efficiency (Token/USD)
 
-Her event'in girdi/çıktı token sayısı da tutulur -- bu içerik değil, bir
-dosyanın boyutu gibi salt sayısal bir kullanım ölçümüdür. Maliyet, araç
-başına `config/pricing.yaml`'daki USD fiyatlarından (1 milyon token başına)
-hesaplanır ve **her zaman USD** olarak gösterilir. Dashboard'daki "Maliyet
-& Verimlilik" sekmesi şirket/araç/çalışan bazlı toplam maliyeti ve
-"verimli token oranı"nı (harcanan token'ların ne kadarının kabul edilen
-etkileşimlere ait olduğu) gösterir. Bu, mevcut 6 boyutlu olgunluk skorunun
-ağırlıklarını değiştirmez -- bilinçli olarak ayrı, tamamlayıcı bir analiz
-katmanıdır (gerekçe: [docs/architecture.md](docs/architecture.md)).
+Each event's input/output token count is also recorded -- this isn't
+content, it's a purely numeric usage measurement, like a file size. Cost
+is calculated from per-tool USD prices in `config/pricing.yaml` (per
+million tokens) and is **always shown in USD**. The "Cost & Efficiency"
+tab in the dashboard shows total cost by company/tool/employee and the
+"efficient token ratio" (what share of spent tokens belong to accepted
+interactions). This does not change the weights of the existing 6-dimension
+maturity score -- it's deliberately kept as a separate, complementary
+analysis layer (rationale: [docs/architecture.md](docs/architecture.md)).
 
-**Kullanılan AI aracı**: `tools` tablosunda beş seçenek tanımlı --
-ChatGPT, Copilot, Claude, Cursor, Antigravity (bkz. `src/demo_data.py::TOOLS`,
-fiyatlandırma `config/pricing.yaml`). "Veri Yükleme" sekmesinde demo verisi
-üretirken hangi aracın kullanılacağı seçilebilir; **şimdilik tüm örnek/demo
-veri tek bir araçla (Copilot) üretiliyor** -- gerçek çeşitlilik gerçek
-entegrasyonla gelecek. Bu bilgi, ilgili dashboard tablolarında (Takım
-Karşılaştırma, Çalışan Bazlı Analiz, Maliyet & Verimlilik) en son sütun
-olarak ("Kullanılan Yapay Zeka") gösterilir.
+**AI tool used**: five options are defined in the `tools` table --
+ChatGPT, Copilot, Claude, Cursor, Antigravity (see `src/demo_data.py::TOOLS`,
+pricing in `config/pricing.yaml`). Which tool is used can be selected when
+generating demo data in the "Data Ingestion" tab; **for now all sample/demo
+data is generated through a single tool (Copilot)** -- real diversity will
+come with a real integration. This information is shown as the last column
+("AI Used") in the relevant dashboard tables (Team Comparison, Employee
+Analysis, Cost & Efficiency).
 
-## Proje Yapısı
+## Project Structure
 
 ```
 cowork-index/
-├── docker-compose.yml         # SQL Server + API + Dashboard (3 servis)
-├── Dockerfile                  # API ve dashboard için ortak imaj (ODBC Driver 18 dahil)
+├── docker-compose.yml         # SQL Server + API + Dashboard (3 services)
+├── Dockerfile                  # Shared image for API and dashboard (includes ODBC Driver 18)
 ├── scripts/
-│   ├── ensure_database.py       # Hedef veritabanı yoksa oluşturur
-│   └── generate_sample_company_excel.py  # Doldurulmuş örnek "şirket verisi" üretir
-├── alembic/                    # Şema migration'ları (kademeli)
+│   ├── ensure_database.py       # Creates the target database if it doesn't exist
+│   └── generate_sample_company_excel.py  # Generates a filled sample "company data" file
+├── alembic/                    # Schema migrations (incremental)
 ├── src/
 │   ├── main.py                  # FastAPI app + lifespan (scheduler)
-│   ├── models.py                 # SQLAlchemy modelleri (3NF)
-│   ├── schemas.py                 # Pydantic şemaları (gizlilik ilkesi burada zorlanır)
+│   ├── models.py                 # SQLAlchemy models (3NF)
+│   ├── schemas.py                 # Pydantic schemas (the privacy principle is enforced here)
 │   ├── db.py                     # engine/session
-│   ├── utils.py                    # utcnow() -- naive-UTC zaman damgası kuralı
-│   ├── demo_data.py                # Sentetik veri üretim mantığı (paylaşılan)
-│   ├── ingestion_service.py         # Demo veri üretimi + Excel toplu içe aktarma
+│   ├── utils.py                    # utcnow() -- naive-UTC timestamp convention
+│   ├── demo_data.py                # Synthetic data generation logic (shared)
+│   ├── ingestion_service.py         # Demo data generation + bulk Excel import
 │   ├── routers/                   # events, scores, quality, ingestion, costs, reference-data
-│   ├── scoring_service.py          # 6 boyut + kompozit skor + arketip
-│   ├── cost_service.py             # Token/USD maliyet + verimlilik hesabı
-│   ├── quality_checks.py           # Periyodik veri kalitesi denetimleri
-│   ├── scheduler.py                # APScheduler job tanımları
-│   └── event_simulator.py          # Sentetik veri üretici (HTTP tabanlı CLI)
+│   ├── scoring_service.py          # 6 dimensions + composite score + archetype
+│   ├── cost_service.py             # Token/USD cost + efficiency calculation
+│   ├── quality_checks.py           # Periodic data quality audits
+│   ├── scheduler.py                # APScheduler job definitions
+│   └── event_simulator.py          # Synthetic data generator (HTTP-based CLI)
 ├── config/
-│   ├── weights.yaml                 # Skor ağırlıkları
-│   ├── archetype_rules.yaml         # Arketip kuralları
-│   └── pricing.yaml                 # Araç başına USD fiyatlandırma (1M token)
-├── dashboard/app.py             # Streamlit (API tüketicisi)
+│   ├── weights.yaml                 # Score weights
+│   ├── archetype_rules.yaml         # Archetype rules
+│   └── pricing.yaml                 # Per-tool USD pricing (per 1M tokens)
+├── dashboard/app.py             # Streamlit (an API consumer)
 ├── docs/                        # architecture.md, data_dictionary.md
 └── tests/                       # pytest
 ```
 
-## API Uç Noktaları
+## API Endpoints
 
-| Metod & Yol | Açıklama |
+| Method & Path | Description |
 |---|---|
-| `POST /events` | Tek bir interaction event kaydeder, senkron skor günceller |
-| `POST /events/batch` | Toplu event kaydı |
-| `GET /scores/employees` | Skoru hesaplanmış tüm çalışanların güncel skorları |
-| `GET /scores/employees/{id}` | Çalışanın güncel skoru ve arketipi |
-| `POST /scores/employees/{id}/recompute` | Belirli bir dönem için manuel/geçmiş skor hesabı |
-| `GET /scores/teams/{id}` | Takım roll-up |
-| `GET /scores/company` | Şirket geneli özet |
-| `GET /scores/trend?period=monthly` | Zaman içi skor trendi |
-| `GET /quality/report` | Son kalite kontrol koşusu |
-| `POST /quality/run` | Kalite kontrollerini manuel tetikler |
-| `POST /ingestion/seed-demo-data` | Tek tıkla sentetik/test verisi üretir |
-| `GET /ingestion/template` | Toplu içe aktarma için Excel şablonu indirir |
-| `POST /ingestion/import-excel` | Doldurulmuş Excel'i toplu olarak sisteme işler |
-| `GET /costs/company?window_days=` | Şirket geneli token/maliyet (USD) ve verimlilik özeti |
-| `GET /costs/employees` | Tüm çalışanların maliyet/verimlilik özeti |
-| `GET /costs/employees/{id}`, `/costs/teams/{id}` | Çalışan/takım bazlı maliyet özeti |
-| `POST/GET /teams`, `/employees`, `/tools` | Referans veri CRUD |
+| `POST /events` | Records a single interaction event, synchronously updates the score |
+| `POST /events/batch` | Bulk event recording |
+| `GET /scores/employees` | Current scores for all employees with a computed score |
+| `GET /scores/employees/{id}` | An employee's current score and archetype |
+| `POST /scores/employees/{id}/recompute` | Manual/historical score computation for a given period |
+| `GET /scores/teams/{id}` | Team roll-up |
+| `GET /scores/company` | Company-wide summary |
+| `GET /scores/trend?period=monthly` | Score trend over time |
+| `GET /quality/report` | Latest quality check run |
+| `POST /quality/run` | Manually triggers quality checks |
+| `POST /ingestion/seed-demo-data` | Generates synthetic/test data with one click |
+| `GET /ingestion/template` | Downloads the Excel template for bulk import |
+| `POST /ingestion/import-excel` | Bulk-processes a filled-in Excel file |
+| `GET /costs/company?window_days=` | Company-wide token/cost (USD) and efficiency summary |
+| `GET /costs/employees` | Cost/efficiency summary for all employees |
+| `GET /costs/employees/{id}`, `/costs/teams/{id}` | Per-employee/team cost summary |
+| `POST/GET /teams`, `/employees`, `/tools` | Reference data CRUD |
 
-## Temel İlke
+## Core Principle
 
-**İçerik değil, davranış analiz edilir.** `interaction_events` tablosunda
-hiçbir içerik/metin kolonu yoktur; API şeması (`extra="forbid"`) bu tür
-alanları kod seviyesinde reddeder. Detaylar ve **veritabanı şemasının görsel
-ER diyagramı** için [docs/data_dictionary.md](docs/data_dictionary.md).
+**Behavior is analyzed, not content.** The `interaction_events` table has
+no content/text column; the API schema (`extra="forbid"`) rejects such
+fields at the code level. For details and a **visual ER diagram of the
+database schema**, see [docs/data_dictionary.md](docs/data_dictionary.md).

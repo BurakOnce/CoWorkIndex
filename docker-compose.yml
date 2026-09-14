@@ -1,0 +1,61 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: cowork-index-db
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "CoWork!2024Strong"
+      MSSQL_PID: "Express"
+    ports:
+      - "1433:1433"
+    volumes:
+      - cowork_mssql_data:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cowork-index-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "mssql+aioodbc://sa:CoWork!2024Strong@sqlserver:1433/ai_usage_maturity?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&MARS_Connection=yes"
+      DATABASE_URL_SYNC: "mssql+pyodbc://sa:CoWork!2024Strong@sqlserver:1433/ai_usage_maturity?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&MARS_Connection=yes"
+      SCHEDULER_ENABLED: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    command: >
+      sh -c "python -m scripts.ensure_database &&
+             python -m alembic upgrade head &&
+             uvicorn src.main:app --host 0.0.0.0 --port 8000"
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cowork-index-dashboard
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: "http://api:8000"
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    command: >
+      streamlit run dashboard/app.py --server.address=0.0.0.0 --server.port=8501
+
+volumes:
+  cowork_mssql_data:

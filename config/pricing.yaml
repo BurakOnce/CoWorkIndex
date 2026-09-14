@@ -1,0 +1,29 @@
+# Araç başına 1 milyon token için USD fiyatlandırma (girdi/çıktı ayrı).
+# Bunlar gerçek kamuya açık liste fiyatlarına yakın, gösterge niteliğinde
+# değerlerdir -- gerçek bir şirket burayı kendi sözleşme fiyatlarıyla
+# güncellerdi. Maliyet her zaman USD olarak hesaplanır/gösterilir.
+ChatGPT:
+  input_per_million: 2.50
+  output_per_million: 10.00
+
+Copilot:
+  input_per_million: 3.00
+  output_per_million: 15.00
+
+Claude:
+  input_per_million: 3.00
+  output_per_million: 15.00
+
+Cursor:
+  input_per_million: 3.00
+  output_per_million: 12.00
+
+Antigravity:
+  input_per_million: 1.25
+  output_per_million: 5.00
+
+# Şablonda/importta olup burada tanımlı olmayan bir araç gelirse bu
+# varsayılan kullanılır.
+_default:
+  input_per_million: 2.50
+  output_per_million: 10.00

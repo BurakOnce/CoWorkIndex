@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.streamlit/
+*.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.xlsx

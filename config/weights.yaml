@@ -1,0 +1,7 @@
+# Kompozit skorun 6 boyutu ve ağırlıkları. Toplam 1.0 olmalı.
+usage_score: 0.15
+approval_score: 0.15
+dialogue_score: 0.20
+tone_score: 0.15
+outcome_score: 0.20
+critical_thinking_score: 0.15

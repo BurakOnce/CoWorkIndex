@@ -1,0 +1,50 @@
+# Arketip belirleme kuralları. scoring_service.py bu eşikleri sırayla
+# (priority artan) dener; ilk eşleşen kural kazanır. Hiçbiri eşleşmezse
+# "diyalog_ortagi" varsayılan (en dengeli profil) atanır.
+#
+# Değerlendirilen ham oranlar (dönem penceresi içindeki event'lerden):
+#   accepted_ratio          -> action_type == accepted oranı
+#   rejected_ratio          -> action_type == rejected oranı
+#   avg_dialogue_turns      -> ortalama dialogue_turn_count
+#   disagreement_ratio      -> had_disagreement == true oranı
+#   critical_check_ratio    -> critical_check_flag == true oranı
+#   avg_directive_ratio     -> ortalama directive_language_ratio
+#   avg_politeness          -> ortalama politeness_marker_count
+#   production_ratio        -> outcome_status == production oranı
+#   abandoned_ratio         -> outcome_status == abandoned oranı
+#   event_count             -> dönemdeki toplam event sayısı
+
+archetypes:
+  - name: pasif_kullanici
+    priority: 1
+    conditions:
+      event_count_max: 5
+      avg_dialogue_turns_max: 1.2
+
+  - name: supheci
+    priority: 2
+    conditions:
+      rejected_ratio_min: 0.30
+      disagreement_ratio_min: 0.25
+      critical_check_ratio_min: 0.30
+
+  - name: emir_verici
+    priority: 3
+    conditions:
+      avg_directive_ratio_min: 0.6
+      avg_politeness_max: 1.0
+
+  - name: kopyala_yapistirci
+    priority: 4
+    conditions:
+      accepted_ratio_min: 0.75
+      avg_dialogue_turns_max: 1.5
+      critical_check_ratio_max: 0.15
+
+  - name: diyalog_ortagi
+    priority: 5
+    conditions:
+      avg_dialogue_turns_min: 2.5
+      production_ratio_min: 0.5
+
+default: diyalog_ortagi

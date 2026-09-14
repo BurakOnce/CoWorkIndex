@@ -48,6 +48,13 @@ medallion/batch approach), see [docs/architecture.md](docs/architecture.md).
 
 ## How Does Data Get In? (Dashboard > "Data Ingestion")
 
+In a real deployment, this data would normally flow in automatically
+through integration with a company's existing HR/People systems (for the
+employee roster) and an AI gateway or browser extension (for usage events)
+-- not be entered by hand. Since this is a demo/test project without those
+integrations, data is instead either generated synthetically or entered
+manually via Excel, as described below.
+
 The company roster is currently fixed-size: **50 employees**
 (`FIXED_EMPLOYEE_COUNT` in `src/demo_data.py`). The "Data Ingestion" tab
 (the rightmost tab in the dashboard) only adds *usage data* (events) to

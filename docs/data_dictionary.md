@@ -2,7 +2,10 @@
 
 Veritabanı: SQL Server. `enum` olarak işaretlenen kolonlar fiziksel olarak
 `nvarchar` + `CHECK` constraint'tir (SQL Server'da native enum tipi yok);
-tüm zaman damgaları saat dilimsiz (`datetime2`) ve daima UTC olarak tutulur.
+tüm zaman damgaları saat dilimsiz (`datetime2`) ve daima UTC olarak tutulur;
+kullanıcıya gösterim ve Excel'den okunan saat dilimsiz girdiler Türkiye
+saatine (`Europe/Istanbul`, UTC+3) göre çevrilir (`LOCAL_TIMEZONE` /
+`DISPLAY_TIMEZONE`).
 Serbest metin kolonları (isim, takım, rol...) **`nvarchar`** (Unicode) --
 `varchar` değil -- çünkü `varchar`'ın varsayılan koleksiyonu Türkçe'ye özgü
 `ş`, `ğ`, `ı`, `İ` karakterlerini sessizce en yakın ASCII karaktere indirger
@@ -17,6 +20,7 @@ erDiagram
     EMPLOYEES ||--o{ INTERACTION_EVENTS : "üretir"
     TOOLS ||--o{ INTERACTION_EVENTS : "kullanılır"
     EMPLOYEES ||--o{ SCORE_SNAPSHOTS : "skorlanır"
+    INTERACTION_EVENTS ||--o| INTERACTION_CONTENTS : "opsiyonel içerik"
 
     TEAMS {
         int id PK
@@ -63,6 +67,15 @@ erDiagram
         float composite_score
         enum archetype
         datetime2 computed_at
+    }
+    INTERACTION_CONTENTS {
+        int id PK
+        int event_id FK
+        nvarchar prompt_text
+        nvarchar response_text
+        nvarchar feedback_text
+        nvarchar signals_json
+        varchar classifier
     }
     QUALITY_CHECK_RUNS {
         int id PK
@@ -129,11 +142,35 @@ metnine ait hiçbir alan içermez** -- bu kasıtlı bir tasarım kararıdır.
 | task_category | enum: code / writing / analysis / other | Görev kategorisi |
 | input_tokens | integer, >= 0 | Girdi (prompt) token sayısı -- içerik değil, salt sayısal kullanım ölçümü |
 | output_tokens | integer, >= 0 | Çıktı (completion) token sayısı |
+| source | varchar(40), null | Bağlayıcı kaynağı (örn. `claude_code`); demo/Excel verisinde NULL |
+| external_id | varchar(200), null | Kaynaktaki kimlik (`<session>:<uuid>`); `(source, external_id)` benzersiz -> upsert |
 | created_at | datetime2 (naive, UTC) | Kayıt zamanı (server_default GETUTCDATE()) |
 
 **CHECK constraint'leri**: `directive_language_ratio`, `exclamation_density`
 [0,1] aralığında; `dialogue_turn_count`, `politeness_marker_count`,
 `avg_sentence_length`, `input_tokens`, `output_tokens` negatif olamaz.
+
+## interaction_contents (opsiyonel içerik katmanı)
+
+`interaction_events` ile 1:1. Yalnızca `CAPTURE_CONTENT=true` iken ve
+yalnızca bağlayıcıdan gelen etkileşimler için yazılır; kapatıldığında tek
+satır bile oluşmaz ve ürün tamamen içeriksiz çalışır. Ürünün ilkesi bu
+tabloyu *ayrı* tutmaktır: davranışsal tablo hiçbir zaman metin taşımaz.
+
+| Kolon | Tip | Açıklama |
+|---|---|---|
+| id | int identity, PK | |
+| event_id | FK -> interaction_events.id, unique | |
+| model | varchar(120) | Kullanılan model (örn. claude-opus-5) |
+| project | nvarchar(400) | Çalışma dizini / proje |
+| prompt_text | nvarchar(max) | Kullanıcının promptu (ham) |
+| response_text | nvarchar(max) | Asistanın metin cevabı (ham) |
+| feedback_text | nvarchar(max) | Kullanıcının bir sonraki promptu -- kabul/red sınıflandırmasının kanıtı |
+| tool_calls_json | nvarchar(max) | Araç çağrıları: ad, hedef dosya/komut, hata, izin reddi |
+| usage_json | nvarchar(max) | Ham token kullanımı (input/output/cache) |
+| signals_json | nvarchar(max) | Heuristik ve Claude kararları + metin istatistikleri + gerekçe |
+| classifier | varchar(40) | `heuristic` / `claude` |
+| started_at / ended_at | datetime2 | Promptun gönderildiği an / son asistan mesajı |
 
 ## score_snapshots
 

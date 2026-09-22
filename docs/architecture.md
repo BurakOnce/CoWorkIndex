@@ -136,6 +136,48 @@ Postgres için de geçerli olurdu. Birkaç SQL Server'a özgü nokta:
   kullanmaktı -- SQL Server ile Türkçe metin tutan her projede akılda
   tutulması gereken bir nokta.
 
+## Canlı Entegrasyon: Claude Code Bağlayıcısı
+
+```mermaid
+flowchart LR
+    CC["Claude Code\n(kullanıcının gerçek oturumu)"]
+    HOOK["hook.py\n(Stop / UserPromptSubmit)"]
+    TR["transcript.py\nJSONL -> Exchange"]
+    API["POST /connectors/exchanges"]
+    EX["src/analysis\nheuristik + Claude sınıflandırıcı"]
+    EV[(interaction_events)]
+    CT[(interaction_contents\nopsiyonel)]
+    DASH["Dashboard\nLive: Claude"]
+
+    CC -- "her turda" --> HOOK --> TR --> API --> EX
+    EX --> EV
+    EX -. "CAPTURE_CONTENT=true" .-> CT
+    EV --> DASH
+    CT --> DASH
+```
+
+Sentetik veri ürünü gösterir; bağlayıcı ürünü *gerçek* kılar. Claude Code
+her oturumu JSONL transcript olarak tutar ve yaşam döngüsü olaylarında hook
+çalıştırabilir. Hook, oturum transcript'ini yeniden okuyup değişen
+"prompt -> cevap" çiftlerini API'ye gönderir; sunucu sinyalleri çıkarır ve
+`(source, external_id)` üzerinden upsert eder. Bir turun kabul/red kararı
+kullanıcının *bir sonraki* promptundan çıkarıldığı için her yeni prompt
+bir önceki turu günceller -- bu yüzden upsert, ekleme değil.
+
+İki tasarım kararı:
+
+1. **Sinyal mantığı yapay zekaya bağlı, ama kanıt üstün.** Ölçülebilen her
+   şey (token, tur, cümle istatistikleri, araç çağrıları, izin redleri,
+   kesintiler) yerelde ölçülür. Yorum gerektiren alanlar (kabul/düzenleme/
+   red, itiraz, ikna yönü, sonuç, eleştirel kontrol, görev tipi, üslup)
+   Claude'a sınıflandırtılır; anahtar yoksa heuristik. Kesinti ya da araç
+   reddi gibi sert kanıtlar model yorumunu ezer. Her iki karar da saklanır.
+2. **İçerik yakalama bir anahtar.** "Böyle bir ürün ne kadar erişebilir?"
+   sorusunun dürüst cevabı "her şeye": prompt, cevap, dosya yolları, komutlar.
+   Bu yüzden içerik ayrı bir tabloda ve tek bir ayarla (`CAPTURE_CONTENT`)
+   kapatılabilir; davranışsal tablo hiçbir zaman metin taşımaz. Ürün, neyi
+   görebileceğini değil neyi tutacağını seçer.
+
 ## Maliyet & Verimlilik: Ayrı Bir Analiz Katmanı
 
 Her event'in girdi/çıktı token sayısı da tutulur (`interaction_events.

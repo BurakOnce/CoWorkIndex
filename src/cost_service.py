@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.models import Employee, InteractionEvent, Team, Tool
+from src.models import Employee, InteractionContent, InteractionEvent, Team, Tool
 from src.schemas import CostSummary, ToolCostBreakdown
 
 
@@ -29,8 +29,22 @@ def _load_pricing() -> dict:
         return yaml.safe_load(f)
 
 
-def _event_cost_usd(pricing: dict, tool_name: str, input_tokens: int, output_tokens: int) -> float:
-    rates = pricing.get(tool_name, pricing["_default"])
+def _rates_for(pricing: dict, tool_name: str, model: str | None = None) -> dict:
+    """Model biliniyorsa (bağlayıcı verisi) modele göre, yoksa araca göre fiyat.
+    `models` bölümündeki anahtarlar model adının ön eki olarak eşleşir
+    (örn. "claude-opus" -> "claude-opus-5")."""
+    if model:
+        model_l = model.lower()
+        for prefix, rates in (pricing.get("models") or {}).items():
+            if model_l.startswith(str(prefix).lower()):
+                return rates
+    return pricing.get(tool_name, pricing["_default"])
+
+
+def _event_cost_usd(
+    pricing: dict, tool_name: str, input_tokens: int, output_tokens: int, model: str | None = None
+) -> float:
+    rates = _rates_for(pricing, tool_name, model)
     return (
         input_tokens / 1_000_000 * rates["input_per_million"]
         + output_tokens / 1_000_000 * rates["output_per_million"]
@@ -44,15 +58,22 @@ async def compute_cost_summary(
     scope_id: int | None = None,
     period_end: date | None = None,
     window_days: int | None = None,
+    project: str | None = None,
 ) -> CostSummary:
     """scope: "company" | "team" | "employee". `window_days` verilmezse
     (varsayılan) tüm geçmiş dikkate alınır -- toplam harcanan bütçe sorusu
     için bu daha doğru varsayılandır; bir pencereye kısıtlamak isterseniz
-    `window_days` verin.
+    `window_days` verin. `project` verilirse yalnızca o projenin event'leri.
     """
     pricing = _load_pricing()
 
-    query = select(InteractionEvent, Tool.name).join(Tool, Tool.id == InteractionEvent.tool_id)
+    query = (
+        select(InteractionEvent, Tool.name, InteractionContent.model)
+        .join(Tool, Tool.id == InteractionEvent.tool_id)
+        .outerjoin(InteractionContent, InteractionContent.event_id == InteractionEvent.id)
+    )
+    if project:
+        query = query.where(InteractionEvent.project == project)
 
     scope_name = None
     if scope == "employee":
@@ -85,9 +106,9 @@ async def compute_cost_summary(
     accepted_tokens = 0
     by_tool: dict[str, dict] = {}
 
-    for event, tool_name in rows:
+    for event, tool_name, model in rows:
         tokens = event.input_tokens + event.output_tokens
-        cost = _event_cost_usd(pricing, tool_name, event.input_tokens, event.output_tokens)
+        cost = _event_cost_usd(pricing, tool_name, event.input_tokens, event.output_tokens, model)
 
         total_input += event.input_tokens
         total_output += event.output_tokens
@@ -135,7 +156,7 @@ async def compute_cost_summary(
 
 
 async def compute_cost_summary_by_employee(
-    session: AsyncSession, *, window_days: int | None = None
+    session: AsyncSession, *, window_days: int | None = None, project: str | None = None
 ) -> list[CostSummary]:
     """Tüm çalışanlar için maliyet özetini tek sorguda hesaplar (dashboard'un
     tam tabloyu gösterirken çalışan başına ayrı bir istek yapmasını önler).
@@ -143,10 +164,13 @@ async def compute_cost_summary_by_employee(
     pricing = _load_pricing()
 
     query = (
-        select(InteractionEvent, Tool.name, Employee.id, Employee.full_name)
+        select(InteractionEvent, Tool.name, Employee.id, Employee.full_name, InteractionContent.model)
         .join(Tool, Tool.id == InteractionEvent.tool_id)
         .join(Employee, Employee.id == InteractionEvent.employee_id)
+        .outerjoin(InteractionContent, InteractionContent.event_id == InteractionEvent.id)
     )
+    if project:
+        query = query.where(InteractionEvent.project == project)
 
     period_start: date | None = None
     period_end: date | None = None
@@ -162,9 +186,9 @@ async def compute_cost_summary_by_employee(
 
     per_employee: dict[int, dict] = {}
 
-    for event, tool_name, employee_id, full_name in rows:
+    for event, tool_name, employee_id, full_name, model in rows:
         tokens = event.input_tokens + event.output_tokens
-        cost = _event_cost_usd(pricing, tool_name, event.input_tokens, event.output_tokens)
+        cost = _event_cost_usd(pricing, tool_name, event.input_tokens, event.output_tokens, model)
 
         bucket = per_employee.setdefault(
             employee_id,

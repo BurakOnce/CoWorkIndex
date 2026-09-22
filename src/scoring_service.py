@@ -75,21 +75,20 @@ class RawAggregates:
 
 
 async def _fetch_raw_aggregates(
-    session: AsyncSession, employee_id: int, period_start: date, period_end: date
+    session: AsyncSession,
+    employee_id: int,
+    period_start: date,
+    period_end: date,
+    project: str | None = None,
 ) -> RawAggregates:
-    rows = (
-        (
-            await session.execute(
-                select(InteractionEvent).where(
-                    InteractionEvent.employee_id == employee_id,
-                    InteractionEvent.occurred_at >= period_start,
-                    InteractionEvent.occurred_at < period_end,
-                )
-            )
-        )
-        .scalars()
-        .all()
+    query = select(InteractionEvent).where(
+        InteractionEvent.employee_id == employee_id,
+        InteractionEvent.occurred_at >= period_start,
+        InteractionEvent.occurred_at < period_end,
     )
+    if project:
+        query = query.where(InteractionEvent.project == project)
+    rows = (await session.execute(query)).scalars().all()
 
     n = len(rows)
     if n == 0:
@@ -263,6 +262,37 @@ async def compute_and_store_employee_score(
         await session.flush()
     await session.refresh(snapshot)
     return snapshot
+
+
+async def compute_employee_score_adhoc(
+    session: AsyncSession,
+    employee_id: int,
+    *,
+    project: str | None = None,
+    period_end: date | None = None,
+    window_days: int = DEFAULT_WINDOW_DAYS,
+) -> dict | None:
+    """Skoru saklamadan, isteğe bağlı proje filtresiyle anlık hesaplar.
+
+    Snapshot'lar çalışanın tüm etkileşimleri üzerinden tutulur; "yalnızca şu
+    projedeki davranış" sorusu için aynı skorlama mantığı filtrelenmiş
+    event'lere uygulanır. Pencerede hiç event yoksa None döner.
+    """
+    period_end = period_end or utcnow().date()
+    period_start = period_end - timedelta(days=window_days)
+    agg = await _fetch_raw_aggregates(session, employee_id, period_start, period_end, project=project)
+    if agg.event_count == 0:
+        return None
+    dims = _dimension_scores(agg)
+    return {
+        "period_start": period_start,
+        "period_end": period_end,
+        "composite_score": _composite_score(dims),
+        "archetype": _determine_archetype(agg),
+        "computed_at": utcnow(),
+        "event_count": agg.event_count,
+        **dims,
+    }
 
 
 async def recompute_scores_for_employees(

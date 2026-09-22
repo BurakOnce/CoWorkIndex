@@ -223,6 +223,124 @@ class CostSummary(BaseModel):
     period_end: date | None
 
 
+# ---------------------------------------------------------------------------
+# Bağlayıcılar (connectors): gerçek AI araçlarından gelen ham etkileşimler.
+#
+# Bu şema, InteractionEventCreate'in aksine içerik TAŞIR -- bilinçli olarak.
+# `POST /events` gizlilik ilkesini kod seviyesinde zorlayan "davranışsal"
+# kapıdır; `POST /connectors/...` ise sinyal çıkarımının sunucuda yapıldığı,
+# içeriğin saklanıp saklanmayacağına `settings.capture_content`'in karar
+# verdiği "tam erişim" kapısıdır.
+# ---------------------------------------------------------------------------
+class ConnectorToolCall(BaseModel):
+    name: str
+    target: str | None = None
+    is_error: bool = False
+    denied: bool = False
+
+
+class ConnectorExchangeIn(BaseModel):
+    external_id: str = Field(min_length=1, max_length=200)
+    session_id: str = Field(min_length=1, max_length=64)
+    turn_index: int = Field(ge=0)
+    started_at: datetime
+    ended_at: datetime | None = None
+    model: str | None = None
+    prompt_text: str = ""
+    response_text: str = ""
+    feedback_text: str | None = None
+    tool_calls: list[ConnectorToolCall] = []
+    usage: dict[str, int] = {}
+    interrupted: bool = False
+    project: str | None = None
+    git_branch: str | None = None
+
+    @field_validator("started_at", "ended_at")
+    @classmethod
+    def normalize_dt(cls, value: datetime | None) -> datetime | None:
+        if value is not None and value.tzinfo is not None:
+            return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value
+
+
+class ConnectorExchangeBatch(BaseModel):
+    source: str = Field(default="claude_code", max_length=40)
+    employee_full_name: str = Field(min_length=1, max_length=200)
+    team_name: str | None = None
+    role: str | None = None
+    tool_name: str = "Claude"
+    exchanges: list[ConnectorExchangeIn]
+
+
+class ConnectorExchangeResult(BaseModel):
+    employee_id: int
+    employee_full_name: str
+    received: int
+    created: int
+    updated: int
+    classifier: str
+    capture_content: bool
+    errors: list[str] = []
+
+
+class LiveInteractionRead(BaseModel):
+    event_id: int
+    employee_id: int
+    employee_full_name: str
+    tool_name: str
+    source: str | None
+    external_id: str | None
+    session_id: str
+    occurred_at: datetime
+    dialogue_turn_count: int
+    action_type: ActionType
+    had_disagreement: bool
+    persuasion_direction: PersuasionDirection
+    outcome_status: OutcomeStatus
+    critical_check_flag: bool
+    task_category: TaskCategory
+    directive_language_ratio: float
+    politeness_marker_count: int
+    avg_sentence_length: float
+    exclamation_density: float
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    model: str | None = None
+    project: str | None = None
+    classifier: str | None = None
+    prompt_text: str | None = None
+    response_text: str | None = None
+    feedback_text: str | None = None
+    tool_calls: list[dict] | None = None
+    signals: dict | None = None
+
+
+class ConnectorSourceStatus(BaseModel):
+    source: str
+    event_count: int
+    session_count: int
+    employee_count: int
+    first_occurred_at: datetime | None
+    last_occurred_at: datetime | None
+
+
+class ProjectSummary(BaseModel):
+    project: str
+    event_count: int
+    employee_count: int
+    session_count: int
+    first_occurred_at: datetime | None
+    last_occurred_at: datetime | None
+
+
+class ConnectorStatus(BaseModel):
+    capture_content: bool
+    classifier_mode: str
+    claude_available: bool
+    sources: list[ConnectorSourceStatus]
+
+
 class QualityCheckRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

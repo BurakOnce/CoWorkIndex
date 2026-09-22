@@ -10,7 +10,7 @@ Varsayılan dil İngilizce'dir.
 """
 
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 import pandas as pd
@@ -119,6 +119,67 @@ STRINGS = {
         "tab_quality": "Data Quality",
         "tab_methodology": "Methodology & Data Dictionary",
         "tab_ingestion": "Data Ingestion",
+        "tab_live": "Live: Claude",
+        "project_filter_label": "Project",
+        "project_all": "All projects",
+        "trend_no_project_note": "Time trends are computed from stored score snapshots and are not filtered by project.",
+        # Live connector feed
+        "live_intro": (
+            "Real interactions streaming in from **Claude Code** through the connector hook. "
+            "Every prompt/response pair becomes one interaction event: deterministic signals "
+            "(tokens, turn index, sentence stats) are measured locally; judgment signals "
+            "(accept/reject, disagreement, outcome, task type, tone) are classified by Claude "
+            "when an API key is configured, otherwise by rule-based heuristics."
+        ),
+        "live_no_data": (
+            "No connector data yet. Install the hook (`python -m connectors.claude_code.install_hook`) "
+            "or import history (`python -m connectors.claude_code.backfill`)."
+        ),
+        "live_metric_events": "Interactions",
+        "live_metric_sessions": "Sessions",
+        "live_metric_last": "Last Interaction",
+        "live_metric_classifier": "Classifier",
+        "live_capture_on": "Content capture: ON (full-access mode)",
+        "live_capture_off": "Content capture: OFF (behavior only)",
+        "live_limit_label": "Rows",
+        "live_employee_label": "Employee",
+        "live_all_employees": "All",
+        "live_refresh": "Refresh",
+        "col_time": "Time",
+        "col_turn": "Turn",
+        "col_task": "Task",
+        "col_action": "Action",
+        "col_disagreement": "Disagreement",
+        "col_outcome": "Outcome",
+        "col_check": "Verified",
+        "col_tokens": "Tokens",
+        "col_cost": "Cost (USD)",
+        "col_project": "Project",
+        "col_classifier": "Classifier",
+        "live_detail_header": "Interaction detail",
+        "live_select_label": "Select an interaction",
+        "live_prompt": "User prompt",
+        "live_response": "Assistant response",
+        "live_feedback": "User's next prompt (feedback used for classification)",
+        "live_tools": "Tools used",
+        "live_signals": "Extracted signals (heuristic vs. Claude)",
+        "live_no_content": "Content not captured for this interaction (capture disabled).",
+        "live_what_header": "What can be extracted from a Claude interaction?",
+        "live_what_markdown": """
+| Signal family | Examples | How |
+|---|---|---|
+| **Content** (optional layer) | prompt text, response text, next prompt | captured verbatim when `CAPTURE_CONTENT=true` |
+| **Volume & cost** | input/output tokens, cache reads, cost in USD, model used | from Claude Code's own usage records |
+| **Dialogue dynamics** | turn index in session, interruptions, session length | transcript structure |
+| **Approval** | accepted / edited / rejected, tool permission denials | next prompt + tool results |
+| **Tone** | directive (imperative) ratio, politeness markers, exclamation density, sentence length | text statistics (TR + EN) |
+| **Critical usage** | asked to verify/test, ran tests, questioned correctness | keywords + tool calls |
+| **Outcome** | files edited & kept, committed/pushed, exploration only, abandoned | tool calls (Edit/Write/Bash git) |
+| **Task type** | code / writing / analysis / other | edited file types + prompt intent |
+| **Context** | project folder, git branch, timestamps, duration | transcript metadata |
+
+Everything above *can* be captured. The product decides what to keep: with content capture off, only the behavioral rows survive.
+""",
         # Company overview
         "date_range_label": "Date Range",
         "date_range_help": "Default: last 30 days. Pick a different range to look at the past.",
@@ -300,6 +361,66 @@ efficiency are presented as a separate, complementary analysis layer. The
         "tab_quality": "Veri Kalitesi",
         "tab_methodology": "Metodoloji & Veri Sözlüğü",
         "tab_ingestion": "Veri Yükleme",
+        "tab_live": "Canlı: Claude",
+        "project_filter_label": "Proje",
+        "project_all": "Tüm projeler",
+        "trend_no_project_note": "Zaman trendleri saklanan skor snapshot'larından hesaplanır; proje filtresi uygulanmaz.",
+        "live_intro": (
+            "**Claude Code**'dan bağlayıcı hook'u üzerinden canlı akan gerçek etkileşimler. "
+            "Her prompt/cevap çifti bir etkileşim event'i olur: deterministik sinyaller "
+            "(token, tur sırası, cümle istatistikleri) yerelde ölçülür; yorum gerektiren "
+            "sinyaller (kabul/red, itiraz, sonuç, görev tipi, üslup) API anahtarı varsa "
+            "Claude tarafından, yoksa kural tabanlı heuristikle sınıflandırılır."
+        ),
+        "live_no_data": (
+            "Henüz bağlayıcı verisi yok. Hook'u kurun (`python -m connectors.claude_code.install_hook`) "
+            "ya da geçmişi içe aktarın (`python -m connectors.claude_code.backfill`)."
+        ),
+        "live_metric_events": "Etkileşim",
+        "live_metric_sessions": "Oturum",
+        "live_metric_last": "Son Etkileşim",
+        "live_metric_classifier": "Sınıflandırıcı",
+        "live_capture_on": "İçerik yakalama: AÇIK (tam erişim modu)",
+        "live_capture_off": "İçerik yakalama: KAPALI (yalnızca davranış)",
+        "live_limit_label": "Satır",
+        "live_employee_label": "Çalışan",
+        "live_all_employees": "Tümü",
+        "live_refresh": "Yenile",
+        "col_time": "Zaman",
+        "col_turn": "Tur",
+        "col_task": "Görev",
+        "col_action": "Aksiyon",
+        "col_disagreement": "İtiraz",
+        "col_outcome": "Sonuç",
+        "col_check": "Doğrulama",
+        "col_tokens": "Token",
+        "col_cost": "Maliyet (USD)",
+        "col_project": "Proje",
+        "col_classifier": "Sınıflandırıcı",
+        "live_detail_header": "Etkileşim detayı",
+        "live_select_label": "Bir etkileşim seçin",
+        "live_prompt": "Kullanıcı promptu",
+        "live_response": "Asistan cevabı",
+        "live_feedback": "Kullanıcının sonraki promptu (sınıflandırmada geri bildirim olarak kullanıldı)",
+        "live_tools": "Kullanılan araçlar",
+        "live_signals": "Çıkarılan sinyaller (heuristik vs. Claude)",
+        "live_no_content": "Bu etkileşim için içerik yakalanmadı (yakalama kapalı).",
+        "live_what_header": "Bir Claude etkileşiminden neler çıkarılabilir?",
+        "live_what_markdown": """
+| Sinyal ailesi | Örnekler | Nasıl |
+|---|---|---|
+| **İçerik** (opsiyonel katman) | prompt metni, cevap metni, sonraki prompt | `CAPTURE_CONTENT=true` iken birebir yakalanır |
+| **Hacim & maliyet** | girdi/çıktı token, cache okuma, USD maliyet, kullanılan model | Claude Code'un kendi kullanım kayıtlarından |
+| **Diyalog dinamiği** | oturumdaki tur sırası, kesintiler, oturum uzunluğu | transcript yapısı |
+| **Onay** | kabul / düzenleme / red, araç izni reddi | sonraki prompt + araç sonuçları |
+| **Üslup** | emir kipi oranı, nezaket işaretleri, ünlem yoğunluğu, cümle uzunluğu | metin istatistikleri (TR + EN) |
+| **Eleştirel kullanım** | doğrulama/test istedi mi, test koştu mu, doğruluğu sorguladı mı | anahtar kelimeler + araç çağrıları |
+| **Sonuç** | dosya düzenlendi ve kaldı, commit/push, salt keşif, terk | araç çağrıları (Edit/Write/Bash git) |
+| **Görev tipi** | kod / yazı / analiz / diğer | düzenlenen dosya tipleri + prompt niyeti |
+| **Bağlam** | proje klasörü, git dalı, zaman damgaları, süre | transcript meta verisi |
+
+Yukarıdakilerin hepsi *yakalanabilir*. Neyin tutulacağına ürün karar verir: içerik yakalama kapalıyken yalnızca davranışsal satırlar kalır.
+""",
         "date_range_label": "Tarih Aralığı",
         "date_range_help": "Varsayılan: son 1 ay. Farklı bir aralık seçerek geçmişe bakabilirsiniz.",
         "warn_no_company_data": (
@@ -520,12 +641,50 @@ CHECK_NAME_LABELS = {
 }
 
 
+def _load_display_tz():
+    """Gösterim saat dilimi. Veritabanı ve API her zaman UTC'dir; yalnızca
+    ekranda çevrilir. Varsayılan Europe/Istanbul (UTC+3, yaz saati yok);
+    tzdata bulunamazsa sabit +3 kullanılır."""
+    name = os.environ.get("DISPLAY_TIMEZONE", "Europe/Istanbul")
+    try:
+        from zoneinfo import ZoneInfo
+
+        return ZoneInfo(name)
+    except Exception:  # noqa: BLE001 -- tzdata yoksa
+        return timezone(timedelta(hours=3))
+
+
+DISPLAY_TZ = _load_display_tz()
+
+
+def to_local(value):
+    """API'den gelen naive-UTC zaman damgasını gösterim saat dilimine çevirir.
+    Saf tarihler (saat bileşeni olmayan) olduğu gibi döner."""
+    ts = pd.to_datetime(value)
+    if ts.tzinfo is None:
+        ts = ts.tz_localize("UTC")
+    return ts.tz_convert(DISPLAY_TZ)
+
+
 def fmt_date(value) -> str:
-    """Formats dates without time/seconds, as DD/MM/YYYY."""
+    """Formats dates without time/seconds, as DD/MM/YYYY (local time zone)."""
     if not value:
         return "-"
     try:
+        text = str(value)
+        if "T" in text or " " in text.strip():
+            return to_local(value).strftime("%d/%m/%Y")
         return pd.to_datetime(value).strftime("%d/%m/%Y")
+    except (ValueError, TypeError):
+        return str(value)
+
+
+def fmt_datetime(value, fmt: str = "%d/%m/%Y %H:%M") -> str:
+    """Formats a UTC timestamp as local date + time."""
+    if not value:
+        return "-"
+    try:
+        return to_local(value).strftime(fmt)
     except (ValueError, TypeError):
         return str(value)
 
@@ -545,25 +704,58 @@ def dominant_tool(by_tool: list[dict] | None) -> str:
 st.title("CoWork Index")
 st.caption(S("app_caption"))
 
-tabs = st.tabs(
-    [
-        S("tab_company"),
-        S("tab_teams"),
-        S("tab_employees"),
-        S("tab_archetypes"),
-        S("tab_trends"),
-        S("tab_cost"),
-        S("tab_quality"),
-        S("tab_methodology"),
-        S("tab_ingestion"),
-    ]
-)
+# ---------------------------------------------------------------------------
+# Global proje filtresi: bağlayıcı verisindeki projelerden biri seçilirse skor,
+# maliyet ve canlı akış uçlarına ?project= geçilir (skorlar o projenin
+# event'leri üzerinden anlık hesaplanır).
+# ---------------------------------------------------------------------------
+_projects = api_get("/connectors/projects") or []
+_project_options = {S("project_all"): None}
+_project_options.update({f"{p['project']} ({p['event_count']})": p["project"] for p in _projects})
+_pf1, _pf2 = st.columns([1, 3])
+with _pf1:
+    _project_choice = st.selectbox(S("project_filter_label"), list(_project_options.keys()), key="project_filter")
+PROJECT = _project_options[_project_choice]
+
+
+def P(params: dict | None = None) -> dict:
+    """API parametrelerine seçili proje filtresini ekler."""
+    merged = dict(params or {})
+    if PROJECT:
+        merged["project"] = PROJECT
+    return merged
+
+
+# Veri Yükleme sekmesi (demo veri + Excel) gerçek Claude entegrasyonu
+# geldiğinden beri varsayılan olarak gizli; kod duruyor, SHOW_INGESTION_TAB=true
+# ile geri açılır.
+SHOW_INGESTION_TAB = os.environ.get("SHOW_INGESTION_TAB", "false").lower() in ("1", "true", "yes")
+
+_TAB_KEYS = [
+    "tab_company",
+    "tab_live",
+    "tab_teams",
+    "tab_employees",
+    "tab_archetypes",
+    "tab_trends",
+    "tab_cost",
+    "tab_quality",
+    "tab_methodology",
+]
+if SHOW_INGESTION_TAB:
+    _TAB_KEYS.append("tab_ingestion")
+_tab_objs = dict(zip(_TAB_KEYS, st.tabs([S(k) for k in _TAB_KEYS])))
+# Mevcut sekme kodu tabs[0..8] indeksleriyle yazıldı; "Live: Claude" sekmesi
+# görsel olarak ikinci sırada dursun ama eski indeksler değişmesin.
+tabs = [_tab_objs[k] for k in _TAB_KEYS if k != "tab_live"]
+live_tab = _tab_objs["tab_live"]
+ingestion_tab = _tab_objs.get("tab_ingestion")
 
 # ---------------------------------------------------------------------------
 # 0. Company Overview
 # ---------------------------------------------------------------------------
 with tabs[0]:
-    default_end = date.today()
+    default_end = datetime.now(DISPLAY_TZ).date()
     default_start = default_end - timedelta(days=30)
     date_range = st.date_input(
         S("date_range_label"),
@@ -579,7 +771,7 @@ with tabs[0]:
 
     company = api_get(
         "/scores/company",
-        params={"period_start": range_start.isoformat(), "period_end": range_end.isoformat()},
+        params=P({"period_start": range_start.isoformat(), "period_end": range_end.isoformat()}),
     )
     if company is None:
         st.warning(S("warn_no_company_data"))
@@ -613,8 +805,8 @@ with tabs[1]:
     else:
         rows = []
         for team in teams:
-            score = api_get(f"/scores/teams/{team['id']}")
-            cost = api_get(f"/costs/teams/{team['id']}")
+            score = api_get(f"/scores/teams/{team['id']}", params=P())
+            cost = api_get(f"/costs/teams/{team['id']}", params=P())
             if score:
                 rows.append(
                     {
@@ -636,7 +828,7 @@ with tabs[1]:
 # 3. Archetype Distribution
 # ---------------------------------------------------------------------------
 with tabs[3]:
-    company = api_get("/scores/company")
+    company = api_get("/scores/company", params=P())
     if company and company.get("archetype_distribution"):
         dist = company["archetype_distribution"]
         dist_df = pd.DataFrame(
@@ -658,6 +850,8 @@ with tabs[4]:
     period_options = [S("period_monthly"), S("period_weekly")]
     period_label = st.radio(S("radio_period_label"), period_options, horizontal=True, index=0)
     period = "monthly" if period_label == period_options[0] else "weekly"
+    if PROJECT:
+        st.caption(S("trend_no_project_note"))
     trend = api_get("/scores/trend", params={"period": period})
     if trend:
         trend_df = pd.DataFrame(trend)
@@ -696,7 +890,7 @@ with tabs[5]:
     window_options = [S("window_30"), S("window_90"), S("window_all")]
     window_label = st.selectbox(S("select_window_label"), window_options, index=2)
     window_days = {window_options[0]: 30, window_options[1]: 90, window_options[2]: None}[window_label]
-    cost_params = {"window_days": window_days} if window_days else None
+    cost_params = P({"window_days": window_days} if window_days else {})
 
     company_cost = api_get("/costs/company", params=cost_params)
     if not company_cost or company_cost["event_count"] == 0:
@@ -798,10 +992,10 @@ with tabs[6]:
 # 2. Employee Analysis
 # ---------------------------------------------------------------------------
 with tabs[2]:
-    employee_scores = api_get("/scores/employees") or []
+    employee_scores = api_get("/scores/employees", params=P()) or []
     teams = api_get("/teams") or []
     team_name_by_id = {t["id"]: t["name"] for t in teams}
-    employee_costs = api_get("/costs/employees") or []
+    employee_costs = api_get("/costs/employees", params=P()) or []
     tool_by_employee_id = {e["scope_id"]: dominant_tool(e["by_tool"]) for e in employee_costs}
 
     if not employee_scores:
@@ -876,9 +1070,9 @@ with tabs[7]:
     st.markdown(S("methodology_markdown"))
 
 # ---------------------------------------------------------------------------
-# 8. Data Ingestion
+# 8. Data Ingestion (yalnızca SHOW_INGESTION_TAB açıkken render edilir)
 # ---------------------------------------------------------------------------
-with tabs[8]:
+def _render_ingestion_tab() -> None:
     st.subheader(S("subheader_quick_demo"))
     st.caption(S("caption_quick_demo"))
     col1, col2 = st.columns(2)
@@ -955,3 +1149,131 @@ with tabs[8]:
                     st.dataframe(pd.DataFrame({S("col_error"): result["errors"]}), hide_index=True)
             except httpx.HTTPStatusError as exc:
                 st.error(S("error_import_failed", error=exc.response.text))
+
+
+if ingestion_tab is not None:
+    with ingestion_tab:
+        _render_ingestion_tab()
+
+# ---------------------------------------------------------------------------
+# Live: Claude -- bağlayıcıdan gelen gerçek etkileşimler
+# ---------------------------------------------------------------------------
+with live_tab:
+    top_left, top_right = st.columns([5, 1])
+    with top_right:
+        if st.button(S("live_refresh"), key="live_refresh"):
+            st.cache_data.clear()
+
+    status = api_get("/connectors/status") or {}
+    sources = status.get("sources") or []
+    if not sources:
+        st.info(S("live_no_data"))
+    else:
+        total_events = sum(s["event_count"] for s in sources)
+        total_sessions = sum(s["session_count"] for s in sources)
+        last_at = max((s["last_occurred_at"] or "" for s in sources), default="")
+        classifier_label = (
+            f"claude ({status.get('classifier_mode')})" if status.get("claude_available") else f"heuristic ({status.get('classifier_mode')})"
+        )
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric(S("live_metric_events"), f"{total_events:,}")
+        m2.metric(S("live_metric_sessions"), f"{total_sessions:,}")
+        m3.metric(S("live_metric_last"), fmt_datetime(last_at) if last_at else "-")
+        m4.metric(S("live_metric_classifier"), classifier_label)
+        st.caption(S("live_capture_on") if status.get("capture_content") else S("live_capture_off"))
+
+    f1, f2 = st.columns([1, 1])
+    with f1:
+        live_limit = st.select_slider(S("live_limit_label"), options=[25, 50, 100, 200, 500], value=100, key="live_limit")
+    employees_all = api_get("/employees") or []
+    connector_employee_ids = {
+        e["employee_id"]
+        for e in (api_get("/connectors/interactions", params=P({"limit": 500, "include_content": "false"})) or [])
+    }
+    employee_options = {S("live_all_employees"): None}
+    employee_options.update({e["full_name"]: e["id"] for e in employees_all if e["id"] in connector_employee_ids})
+    with f2:
+        chosen_employee = st.selectbox(S("live_employee_label"), list(employee_options.keys()), key="live_employee")
+
+    params = P({"limit": live_limit})
+    if employee_options[chosen_employee] is not None:
+        params["employee_id"] = employee_options[chosen_employee]
+    feed = api_get("/connectors/interactions", params=params) or []
+
+    if feed:
+        def _short_project(path: str | None) -> str:
+            if not path:
+                return "-"
+            return path.replace("\\", "/").rstrip("/").split("/")[-1]
+
+        feed_df = pd.DataFrame(
+            [
+                {
+                    S("col_time"): fmt_datetime(row["occurred_at"]),
+                    S("col_employee"): row["employee_full_name"],
+                    S("col_project"): _short_project(row.get("project")),
+                    S("col_turn"): row["dialogue_turn_count"],
+                    S("col_task"): row["task_category"],
+                    S("col_action"): row["action_type"],
+                    S("col_disagreement"): "✓" if row["had_disagreement"] else "",
+                    S("col_outcome"): row["outcome_status"],
+                    S("col_check"): "✓" if row["critical_check_flag"] else "",
+                    S("col_tokens"): row["input_tokens"] + row["output_tokens"],
+                    S("col_cost"): round(row["cost_usd"], 4),
+                    S("col_classifier"): row.get("classifier") or "-",
+                    "_event_id": row["event_id"],
+                }
+                for row in feed
+            ]
+        )
+        st.dataframe(feed_df.drop(columns=["_event_id"]), use_container_width=True, hide_index=True)
+
+        st.divider()
+        st.subheader(S("live_detail_header"))
+        labels = {
+            f"#{row['event_id']} · {fmt_datetime(row['occurred_at'], '%d/%m %H:%M')} · "
+            f"{(row.get('prompt_text') or '')[:70].replace(chr(10), ' ')}": row
+            for row in feed
+        }
+        chosen = st.selectbox(S("live_select_label"), list(labels.keys()), key="live_detail")
+        row = labels[chosen]
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric(S("col_action"), row["action_type"])
+        d2.metric(S("col_outcome"), row["outcome_status"])
+        d3.metric(S("col_task"), row["task_category"])
+        d4.metric(S("col_tokens"), f"{row['input_tokens'] + row['output_tokens']:,}")
+        if row.get("prompt_text") is None and row.get("response_text") is None:
+            st.info(S("live_no_content"))
+        else:
+            st.markdown(f"**{S('live_prompt')}**")
+            st.text_area("prompt", row.get("prompt_text") or "", height=140, label_visibility="collapsed", key=f"p{row['event_id']}")
+            st.markdown(f"**{S('live_response')}**")
+            st.text_area("response", row.get("response_text") or "", height=160, label_visibility="collapsed", key=f"r{row['event_id']}")
+            if row.get("feedback_text"):
+                st.markdown(f"**{S('live_feedback')}**")
+                st.text_area("feedback", row.get("feedback_text") or "", height=90, label_visibility="collapsed", key=f"f{row['event_id']}")
+            if row.get("tool_calls"):
+                st.markdown(f"**{S('live_tools')}**")
+                st.dataframe(pd.DataFrame(row["tool_calls"]), use_container_width=True, hide_index=True)
+            if row.get("signals"):
+                st.markdown(f"**{S('live_signals')}**")
+                sig = row["signals"]
+                cmp_rows = []
+                for key in sig.get("final", {}):
+                    cmp_rows.append(
+                        {
+                            "signal": key,
+                            "heuristic": sig.get("heuristic", {}).get(key),
+                            "claude": (sig.get("claude") or {}).get(key),
+                            "final": sig["final"].get(key),
+                        }
+                    )
+                st.dataframe(pd.DataFrame(cmp_rows), use_container_width=True, hide_index=True)
+                if sig.get("claude") and sig["claude"].get("rationale"):
+                    st.caption(f"Claude: {sig['claude']['rationale']}")
+                with st.expander("raw"):
+                    st.json(sig)
+
+    st.divider()
+    st.subheader(S("live_what_header"))
+    st.markdown(S("live_what_markdown"))

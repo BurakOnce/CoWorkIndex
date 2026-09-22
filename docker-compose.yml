@@ -32,6 +32,12 @@ services:
       DATABASE_URL: "mssql+aioodbc://sa:CoWork!2024Strong@sqlserver:1433/ai_usage_maturity?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&MARS_Connection=yes"
       DATABASE_URL_SYNC: "mssql+pyodbc://sa:CoWork!2024Strong@sqlserver:1433/ai_usage_maturity?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&MARS_Connection=yes"
       SCHEDULER_ENABLED: "true"
+      # Bağlayıcı ayarları (.env dosyasından okunur; boşsa varsayılanlar geçerli)
+      CAPTURE_CONTENT: "${CAPTURE_CONTENT:-true}"
+      SIGNAL_CLASSIFIER: "${SIGNAL_CLASSIFIER:-auto}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      ANTHROPIC_MODEL: "${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}"
+      LOCAL_TIMEZONE: "${LOCAL_TIMEZONE:-Europe/Istanbul}"
     ports:
       - "8000:8000"
     depends_on:
@@ -50,6 +56,7 @@ services:
     restart: unless-stopped
     environment:
       API_BASE_URL: "http://api:8000"
+      DISPLAY_TIMEZONE: "${DISPLAY_TIMEZONE:-Europe/Istanbul}"
     ports:
       - "8501:8501"
     depends_on:

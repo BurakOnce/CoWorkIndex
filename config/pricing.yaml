@@ -27,3 +27,21 @@ Antigravity:
 _default:
   input_per_million: 2.50
   output_per_million: 10.00
+
+# Bağlayıcı verisinde kullanılan model biliniyorsa araç yerine modele göre
+# fiyatlandırılır. Anahtarlar model adının ön ekidir ("claude-opus" ->
+# "claude-opus-5"). Kamuya açık liste fiyatları (1M token, USD).
+# Not: Bağlayıcı, cache okumalarını %10, cache yazmalarını %125 ağırlıkla
+# "faturalandırma eşdeğeri" girdi token'ına çevirir (bkz. src/analysis/extractor.py).
+models:
+  # Opus 4.5 liste fiyatı; daha yeni Opus sürümleri için resmi fiyat
+  # listesinden güncelleyin.
+  claude-opus:
+    input_per_million: 5.00
+    output_per_million: 25.00
+  claude-sonnet:
+    input_per_million: 3.00
+    output_per_million: 15.00
+  claude-haiku:
+    input_per_million: 1.00
+    output_per_million: 5.00

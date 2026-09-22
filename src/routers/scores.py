@@ -6,11 +6,74 @@ from sqlalchemy import func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db import get_session
-from src.models import Employee, ScoreSnapshot, Team
+from src.models import Employee, InteractionEvent, ScoreSnapshot, Team
 from src.schemas import CompanyScore, EmployeeScore, ScoreTrendPoint, TeamScore
-from src.scoring_service import compute_and_store_employee_score
+from src.scoring_service import compute_and_store_employee_score, compute_employee_score_adhoc
 
 router = APIRouter(prefix="/scores", tags=["scores"])
+
+
+# ---------------------------------------------------------------------------
+# Proje filtresi: snapshot'lar çalışanın tüm etkileşimlerini kapsar; ?project=
+# verildiğinde aynı skorlama mantığı yalnızca o projenin event'lerine anlık
+# uygulanır (saklanmaz).
+# ---------------------------------------------------------------------------
+async def _employees_with_project_events(
+    session: AsyncSession, project: str, period_start: date, period_end: date, team_id: int | None = None
+) -> list[Employee]:
+    query = (
+        select(Employee)
+        .join(InteractionEvent, InteractionEvent.employee_id == Employee.id)
+        .where(
+            InteractionEvent.project == project,
+            InteractionEvent.occurred_at >= period_start,
+            InteractionEvent.occurred_at < period_end,
+        )
+        .distinct()
+        .order_by(Employee.full_name)
+    )
+    if team_id is not None:
+        query = query.where(Employee.team_id == team_id)
+    return list((await session.execute(query)).scalars().all())
+
+
+def _adhoc_to_employee_score(employee: Employee, adhoc: dict) -> EmployeeScore:
+    return EmployeeScore(
+        employee_id=employee.id,
+        full_name=employee.full_name,
+        team_id=employee.team_id,
+        period_start=adhoc["period_start"],
+        period_end=adhoc["period_end"],
+        usage_score=adhoc["usage_score"],
+        approval_score=adhoc["approval_score"],
+        dialogue_score=adhoc["dialogue_score"],
+        tone_score=adhoc["tone_score"],
+        outcome_score=adhoc["outcome_score"],
+        critical_thinking_score=adhoc["critical_thinking_score"],
+        composite_score=adhoc["composite_score"],
+        archetype=adhoc["archetype"],
+        computed_at=adhoc["computed_at"],
+    )
+
+
+async def _project_scores(
+    session: AsyncSession,
+    project: str,
+    period_end: date | None = None,
+    window_days: int = 30,
+    team_id: int | None = None,
+) -> list[EmployeeScore]:
+    period_end = period_end or date.today()
+    period_start = period_end - timedelta(days=window_days)
+    employees = await _employees_with_project_events(session, project, period_start, period_end, team_id)
+    scores: list[EmployeeScore] = []
+    for employee in employees:
+        adhoc = await compute_employee_score_adhoc(
+            session, employee.id, project=project, period_end=period_end, window_days=window_days
+        )
+        if adhoc is not None:
+            scores.append(_adhoc_to_employee_score(employee, adhoc))
+    return scores
 
 
 async def _latest_snapshot_subquery(session: AsyncSession):
@@ -44,11 +107,19 @@ def _to_employee_score(employee: Employee, snapshot: ScoreSnapshot) -> EmployeeS
 
 
 @router.get("/employees", response_model=list[EmployeeScore])
-async def list_employee_scores(session: AsyncSession = Depends(get_session)):
+async def list_employee_scores(
+    project: str | None = None,
+    window_days: int = Query(default=30, ge=1, le=365),
+    session: AsyncSession = Depends(get_session),
+):
     """Skoru hesaplanmış tüm çalışanların en güncel skorlarını döndürür.
 
+    `project` verilirse yalnızca o projedeki event'ler üzerinden anlık hesaplanır.
     Dashboard'daki "Çalışan Bazlı Analiz" sekmesi bunu kullanır.
     """
+    if project:
+        return await _project_scores(session, project, window_days=window_days)
+
     latest_sub = await _latest_snapshot_subquery(session)
     query = (
         select(ScoreSnapshot, Employee)
@@ -65,10 +136,18 @@ async def list_employee_scores(session: AsyncSession = Depends(get_session)):
 
 
 @router.get("/employees/{employee_id}", response_model=EmployeeScore)
-async def get_employee_score(employee_id: int, session: AsyncSession = Depends(get_session)):
+async def get_employee_score(
+    employee_id: int, project: str | None = None, session: AsyncSession = Depends(get_session)
+):
     employee = await session.get(Employee, employee_id)
     if employee is None:
         raise HTTPException(status_code=404, detail="Çalışan bulunamadı")
+
+    if project:
+        adhoc = await compute_employee_score_adhoc(session, employee_id, project=project)
+        if adhoc is None:
+            raise HTTPException(status_code=404, detail="Bu çalışanın bu projede son 30 günde etkileşimi yok")
+        return _adhoc_to_employee_score(employee, adhoc)
 
     snapshot = (
         await session.execute(
@@ -112,10 +191,26 @@ async def recompute_employee_score(
 
 
 @router.get("/teams/{team_id}", response_model=TeamScore)
-async def get_team_score(team_id: int, session: AsyncSession = Depends(get_session)):
+async def get_team_score(
+    team_id: int, project: str | None = None, session: AsyncSession = Depends(get_session)
+):
     team = await session.get(Team, team_id)
     if team is None:
         raise HTTPException(status_code=404, detail="Takım bulunamadı")
+
+    if project:
+        scores = await _project_scores(session, project, team_id=team_id)
+        if not scores:
+            raise HTTPException(status_code=404, detail="Bu takımın bu projede skor verisi yok")
+        return TeamScore(
+            team_id=team.id,
+            team_name=team.name,
+            employee_count=len(scores),
+            avg_composite_score=round(sum(s.composite_score for s in scores) / len(scores), 2),
+            archetype_distribution=dict(Counter(s.archetype.value for s in scores)),
+            period_start=min(s.period_start for s in scores),
+            period_end=max(s.period_end for s in scores),
+        )
 
     latest_sub = await _latest_snapshot_subquery(session)
     query = (
@@ -151,6 +246,7 @@ async def get_team_score(team_id: int, session: AsyncSession = Depends(get_sessi
 async def get_company_score(
     period_start: date | None = None,
     period_end: date | None = None,
+    project: str | None = None,
     session: AsyncSession = Depends(get_session),
 ):
     """Şirket geneli özet.
@@ -164,6 +260,26 @@ async def get_company_score(
     """
     period_end = period_end or date.today()
     period_start = period_start or (period_end - timedelta(days=30))
+
+    if project:
+        window_days = max(1, (period_end - period_start).days)
+        scores = await _project_scores(session, project, period_end=period_end, window_days=window_days)
+        if not scores:
+            raise HTTPException(status_code=404, detail="Bu projede bu tarih aralığında skor verisi yok")
+        n = len(scores)
+        return CompanyScore(
+            employee_count=n,
+            avg_composite_score=round(sum(s.composite_score for s in scores) / n, 2),
+            avg_usage_score=round(sum(s.usage_score for s in scores) / n, 2),
+            avg_approval_score=round(sum(s.approval_score for s in scores) / n, 2),
+            avg_dialogue_score=round(sum(s.dialogue_score for s in scores) / n, 2),
+            avg_tone_score=round(sum(s.tone_score for s in scores) / n, 2),
+            avg_outcome_score=round(sum(s.outcome_score for s in scores) / n, 2),
+            avg_critical_thinking_score=round(sum(s.critical_thinking_score for s in scores) / n, 2),
+            archetype_distribution=dict(Counter(s.archetype.value for s in scores)),
+            period_start=period_start,
+            period_end=period_end,
+        )
 
     query = select(ScoreSnapshot).where(
         ScoreSnapshot.period_end >= period_start,

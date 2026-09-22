@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from src.routers import costs, events, ingestion, quality, reference_data, scores
+from src.routers import connectors, costs, events, ingestion, quality, reference_data, scores
 from src.scheduler import shutdown_scheduler, start_scheduler
 
 
@@ -30,6 +30,7 @@ app.include_router(scores.router)
 app.include_router(quality.router)
 app.include_router(ingestion.router)
 app.include_router(costs.router)
+app.include_router(connectors.router)
 
 
 @app.get("/health", tags=["meta"])

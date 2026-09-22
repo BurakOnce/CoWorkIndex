@@ -43,8 +43,9 @@ from src.demo_data import (
 from src.models import Employee, InteractionEvent, Team, Tool
 from src.quality_checks import run_all_quality_checks
 from src.schemas import InteractionEventCreate
+from src.config import settings
 from src.scoring_service import compute_and_store_employee_score
-from src.utils import utcnow
+from src.utils import local_naive_to_utc, local_tz, utcnow
 
 fake = Faker("tr_TR")
 
@@ -282,7 +283,7 @@ async def build_template_workbook(session: AsyncSession) -> bytes:
                 "ai_persuaded_user / user_persuaded_ai / none",
                 "production / test_only / abandoned",
                 "code / writing / analysis / other",
-                "YYYY-AA-GG SS:DD:SS",
+                "YYYY-AA-GG SS:DD:SS (Türkiye saati, UTC+3)",
                 "0 ile 1 arasında ondalık sayı",
                 "0 veya pozitif tam sayı -- girdi/çıktı token sayısı (maliyet hesabı için)",
                 "Bu şablon prompt/çıktı metni İÇERMEMELİDİR -- yalnızca davranışsal "
@@ -351,6 +352,9 @@ async def import_from_excel(session: AsyncSession, file_bytes: bytes) -> dict:
                 if isinstance(occurred_at_value, pd.Timestamp)
                 else datetime.fromisoformat(str(occurred_at_value))
             )
+            # Excel'e saat dilimsiz girilen zaman yerel saattir (Türkiye,
+            # UTC+3); DB her zaman UTC tuttuğu için burada çevrilir.
+            occurred_at = local_naive_to_utc(occurred_at, local_tz(settings.local_timezone))
 
             validated = InteractionEventCreate(
                 employee_id=employee.id,

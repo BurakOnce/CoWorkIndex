@@ -174,10 +174,54 @@ class InteractionEvent(Base):
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # Bağlayıcı (connector) kaynağı ve kaynaktaki kimlik: aynı etkileşim
+    # tekrar gönderildiğinde upsert için (örn. "claude_code" + "session:uuid").
+    source: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Proje adı (klasörün son parçası). Bağlam meta verisidir; ?project=
+    # filtresiyle skor ve maliyet proje bazında analiz edilebilir.
+    project: Mapped[str | None] = mapped_column(Unicode(200), nullable=True, index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW_SERVER_DEFAULT)
 
     employee: Mapped["Employee"] = relationship(back_populates="events")
     tool: Mapped["Tool"] = relationship(back_populates="events")
+    content: Mapped["InteractionContent | None"] = relationship(
+        back_populates="event", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class InteractionContent(Base):
+    """Opsiyonel içerik yakalama katmanı (bkz. settings.capture_content).
+
+    Ürünün varsayılan ilkesi "içerik değil, davranış"tır ve
+    `interaction_events` bu ilkeyi taşır. Bu tablo ise bilinçli olarak
+    ayrıdır: bir bağlayıcı içerik yakalamayı açtığında ham prompt/cevap
+    metni, araç çağrıları, token kullanımı ve çıkarılan sinyallerin
+    gerekçesi buraya yazılır. Kapatıldığında tek satır bile oluşmaz ve
+    ürün yine tamamen içeriksiz çalışır.
+    """
+
+    __tablename__ = "interaction_contents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[int] = mapped_column(
+        ForeignKey("interaction_events.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    project: Mapped[str | None] = mapped_column(Unicode(400), nullable=True)
+    prompt_text: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
+    response_text: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
+    feedback_text: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
+    tool_calls_json: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
+    usage_json: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
+    signals_json: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
+    classifier: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW_SERVER_DEFAULT)
+
+    event: Mapped["InteractionEvent"] = relationship(back_populates="content")
 
 
 class ScoreSnapshot(Base):

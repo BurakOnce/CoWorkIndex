@@ -246,6 +246,7 @@ class ConnectorExchangeIn(BaseModel):
     started_at: datetime
     ended_at: datetime | None = None
     model: str | None = None
+    effort: str | None = None
     prompt_text: str = ""
     response_text: str = ""
     feedback_text: str | None = None
@@ -307,6 +308,7 @@ class LiveInteractionRead(BaseModel):
     output_tokens: int
     cost_usd: float
     model: str | None = None
+    effort: str | None = None
     project: str | None = None
     classifier: str | None = None
     prompt_text: str | None = None

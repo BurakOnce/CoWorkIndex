@@ -119,7 +119,7 @@ STRINGS = {
         "tab_quality": "Data Quality",
         "tab_methodology": "Methodology & Data Dictionary",
         "tab_ingestion": "Data Ingestion",
-        "tab_live": "Live: Claude",
+        "tab_live": "Live: Agents",
         "project_filter_label": "Project",
         "project_all": "All projects",
         "trend_no_project_note": "Time trends are computed from stored score snapshots and are not filtered by project.",
@@ -132,8 +132,9 @@ STRINGS = {
             "when an API key is configured, otherwise by rule-based heuristics."
         ),
         "live_no_data": (
-            "No connector data yet. Install the hook (`python -m connectors.claude_code.install_hook`) "
-            "or import history (`python -m connectors.claude_code.backfill`)."
+            "No connector data yet. Set up a connector -- e.g. Claude Code "
+            "(`python -m connectors.claude_code.install_hook`) or Copilot Chat "
+            "(`python -m connectors.copilot_chat.backfill`) -- see `connectors/README.md`."
         ),
         "live_metric_events": "Interactions",
         "live_metric_sessions": "Sessions",
@@ -142,6 +143,8 @@ STRINGS = {
         "live_capture_on": "Content capture: ON (full-access mode)",
         "live_capture_off": "Content capture: OFF (behavior only)",
         "live_limit_label": "Rows",
+        "live_source_label": "Source",
+        "live_all_sources": "All sources",
         "live_employee_label": "Employee",
         "live_all_employees": "All",
         "live_refresh": "Refresh",
@@ -155,6 +158,8 @@ STRINGS = {
         "col_tokens": "Tokens",
         "col_cost": "Cost (USD)",
         "col_project": "Project",
+        "col_ide": "IDE",
+        "col_agent": "Agent",
         "col_classifier": "Classifier",
         "live_detail_header": "Interaction detail",
         "live_select_label": "Select an interaction",
@@ -164,12 +169,12 @@ STRINGS = {
         "live_tools": "Tools used",
         "live_signals": "Extracted signals (heuristic vs. Claude)",
         "live_no_content": "Content not captured for this interaction (capture disabled).",
-        "live_what_header": "What can be extracted from a Claude interaction?",
+        "live_what_header": "What can be extracted from an AI agent interaction?",
         "live_what_markdown": """
 | Signal family | Examples | How |
 |---|---|---|
 | **Content** (optional layer) | prompt text, response text, next prompt | captured verbatim when `CAPTURE_CONTENT=true` |
-| **Volume & cost** | input/output tokens, cache reads, cost in USD, model used | from Claude Code's own usage records |
+| **Volume & cost** | input/output tokens, cache reads, cost in USD, model used | from the connector's own usage records (availability varies by AI tool) |
 | **Dialogue dynamics** | turn index in session, interruptions, session length | transcript structure |
 | **Approval** | accepted / edited / rejected, tool permission denials | next prompt + tool results |
 | **Tone** | directive (imperative) ratio, politeness markers, exclamation density, sentence length | text statistics (TR + EN) |
@@ -361,7 +366,7 @@ efficiency are presented as a separate, complementary analysis layer. The
         "tab_quality": "Veri Kalitesi",
         "tab_methodology": "Metodoloji & Veri Sözlüğü",
         "tab_ingestion": "Veri Yükleme",
-        "tab_live": "Canlı: Claude",
+        "tab_live": "Canlı: Ajanlar",
         "project_filter_label": "Proje",
         "project_all": "Tüm projeler",
         "trend_no_project_note": "Zaman trendleri saklanan skor snapshot'larından hesaplanır; proje filtresi uygulanmaz.",
@@ -373,8 +378,9 @@ efficiency are presented as a separate, complementary analysis layer. The
             "Claude tarafından, yoksa kural tabanlı heuristikle sınıflandırılır."
         ),
         "live_no_data": (
-            "Henüz bağlayıcı verisi yok. Hook'u kurun (`python -m connectors.claude_code.install_hook`) "
-            "ya da geçmişi içe aktarın (`python -m connectors.claude_code.backfill`)."
+            "Henüz bağlayıcı verisi yok. Bir bağlayıcı kurun -- örn. Claude Code "
+            "(`python -m connectors.claude_code.install_hook`) ya da Copilot Chat "
+            "(`python -m connectors.copilot_chat.backfill`) -- bkz. `connectors/README.md`."
         ),
         "live_metric_events": "Etkileşim",
         "live_metric_sessions": "Oturum",
@@ -383,6 +389,8 @@ efficiency are presented as a separate, complementary analysis layer. The
         "live_capture_on": "İçerik yakalama: AÇIK (tam erişim modu)",
         "live_capture_off": "İçerik yakalama: KAPALI (yalnızca davranış)",
         "live_limit_label": "Satır",
+        "live_source_label": "Kaynak",
+        "live_all_sources": "Tüm kaynaklar",
         "live_employee_label": "Çalışan",
         "live_all_employees": "Tümü",
         "live_refresh": "Yenile",
@@ -396,6 +404,8 @@ efficiency are presented as a separate, complementary analysis layer. The
         "col_tokens": "Token",
         "col_cost": "Maliyet (USD)",
         "col_project": "Proje",
+        "col_ide": "IDE",
+        "col_agent": "Ajan",
         "col_classifier": "Sınıflandırıcı",
         "live_detail_header": "Etkileşim detayı",
         "live_select_label": "Bir etkileşim seçin",
@@ -405,12 +415,12 @@ efficiency are presented as a separate, complementary analysis layer. The
         "live_tools": "Kullanılan araçlar",
         "live_signals": "Çıkarılan sinyaller (heuristik vs. Claude)",
         "live_no_content": "Bu etkileşim için içerik yakalanmadı (yakalama kapalı).",
-        "live_what_header": "Bir Claude etkileşiminden neler çıkarılabilir?",
+        "live_what_header": "Bir AI ajanı etkileşiminden neler çıkarılabilir?",
         "live_what_markdown": """
 | Sinyal ailesi | Örnekler | Nasıl |
 |---|---|---|
 | **İçerik** (opsiyonel katman) | prompt metni, cevap metni, sonraki prompt | `CAPTURE_CONTENT=true` iken birebir yakalanır |
-| **Hacim & maliyet** | girdi/çıktı token, cache okuma, USD maliyet, kullanılan model | Claude Code'un kendi kullanım kayıtlarından |
+| **Hacim & maliyet** | girdi/çıktı token, cache okuma, USD maliyet, kullanılan model | bağlayıcının kendi kullanım kayıtlarından (araca göre değişir) |
 | **Diyalog dinamiği** | oturumdaki tur sırası, kesintiler, oturum uzunluğu | transcript yapısı |
 | **Onay** | kabul / düzenleme / red, araç izni reddi | sonraki prompt + araç sonuçları |
 | **Üslup** | emir kipi oranı, nezaket işaretleri, ünlem yoğunluğu, cümle uzunluğu | metin istatistikleri (TR + EN) |
@@ -711,7 +721,7 @@ st.caption(S("app_caption"))
 # ---------------------------------------------------------------------------
 _projects = api_get("/connectors/projects") or []
 _project_options = {S("project_all"): None}
-_project_options.update({f"{p['project']} ({p['event_count']})": p["project"] for p in _projects})
+_project_options.update({p["project"]: p["project"] for p in _projects})
 _pf1, _pf2 = st.columns([1, 3])
 with _pf1:
     _project_choice = st.selectbox(S("project_filter_label"), list(_project_options.keys()), key="project_filter")
@@ -1182,9 +1192,17 @@ with live_tab:
         m4.metric(S("live_metric_classifier"), classifier_label)
         st.caption(S("live_capture_on") if status.get("capture_content") else S("live_capture_off"))
 
-    f1, f2 = st.columns([1, 1])
+    def _source_label(source: str) -> str:
+        return {"claude_code": "Claude Code", "copilot_chat": "Copilot Chat"}.get(source, source)
+
+    f1, f2, f3 = st.columns([1, 1, 1])
     with f1:
         live_limit = st.select_slider(S("live_limit_label"), options=[25, 50, 100, 200, 500], value=100, key="live_limit")
+    source_options = {S("live_all_sources"): None}
+    source_options.update({_source_label(s["source"]): s["source"] for s in sources})
+    with f2:
+        chosen_source = st.selectbox(S("live_source_label"), list(source_options.keys()), key="live_source")
+
     employees_all = api_get("/employees") or []
     connector_employee_ids = {
         e["employee_id"]
@@ -1192,10 +1210,12 @@ with live_tab:
     }
     employee_options = {S("live_all_employees"): None}
     employee_options.update({e["full_name"]: e["id"] for e in employees_all if e["id"] in connector_employee_ids})
-    with f2:
+    with f3:
         chosen_employee = st.selectbox(S("live_employee_label"), list(employee_options.keys()), key="live_employee")
 
     params = P({"limit": live_limit})
+    if source_options[chosen_source] is not None:
+        params["source"] = source_options[chosen_source]
     if employee_options[chosen_employee] is not None:
         params["employee_id"] = employee_options[chosen_employee]
     feed = api_get("/connectors/interactions", params=params) or []
@@ -1206,12 +1226,28 @@ with live_tab:
                 return "-"
             return path.replace("\\", "/").rstrip("/").split("/")[-1]
 
+        def _agent_label(model: str | None, effort: str | None) -> str:
+            if not model:
+                return "-"
+            m = model.lower()
+            name = model
+            for key, label in (("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku"), ("fable", "Fable"), ("gpt", "GPT")):
+                if key in m:
+                    import re as _re
+
+                    match = _re.search(r"(\d+(?:\.\d+)?)", model)
+                    name = f"{label} {match.group(1)}" if match else label
+                    break
+            return f"{name} · {effort}" if effort else name
+
         feed_df = pd.DataFrame(
             [
                 {
                     S("col_time"): fmt_datetime(row["occurred_at"]),
                     S("col_employee"): row["employee_full_name"],
                     S("col_project"): _short_project(row.get("project")),
+                    S("col_ide"): _source_label(row.get("source") or "-"),
+                    S("col_agent"): _agent_label(row.get("model"), row.get("effort")),
                     S("col_turn"): row["dialogue_turn_count"],
                     S("col_task"): row["task_category"],
                     S("col_action"): row["action_type"],
@@ -1237,11 +1273,13 @@ with live_tab:
         }
         chosen = st.selectbox(S("live_select_label"), list(labels.keys()), key="live_detail")
         row = labels[chosen]
-        d1, d2, d3, d4 = st.columns(4)
+        d1, d2, d3, d4, d5, d6 = st.columns(6)
         d1.metric(S("col_action"), row["action_type"])
         d2.metric(S("col_outcome"), row["outcome_status"])
         d3.metric(S("col_task"), row["task_category"])
         d4.metric(S("col_tokens"), f"{row['input_tokens'] + row['output_tokens']:,}")
+        d5.metric(S("col_ide"), _source_label(row.get("source") or "-"))
+        d6.metric(S("col_agent"), _agent_label(row.get("model"), row.get("effort")))
         if row.get("prompt_text") is None and row.get("response_text") is None:
             st.info(S("live_no_content"))
         else:

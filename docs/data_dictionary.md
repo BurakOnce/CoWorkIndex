@@ -57,6 +57,8 @@ erDiagram
         enum task_category
         int input_tokens
         int output_tokens
+        varchar model
+        varchar effort
         datetime2 created_at
     }
     SCORE_SNAPSHOTS {
@@ -144,6 +146,9 @@ metnine ait hiçbir alan içermez** -- bu kasıtlı bir tasarım kararıdır.
 | output_tokens | integer, >= 0 | Çıktı (completion) token sayısı |
 | source | varchar(40), null | Bağlayıcı kaynağı (örn. `claude_code`); demo/Excel verisinde NULL |
 | external_id | varchar(200), null | Kaynaktaki kimlik (`<session>:<uuid>`); `(source, external_id)` benzersiz -> upsert |
+| project | nvarchar(200), null | Proje adı (çalışma dizininin son parçası); `?project=` filtresi bunu kullanır |
+| model | varchar(120), null | Etkileşimi işleyen AI modeli (örn. `claude-sonnet-5`) -- davranışsal bağlam, içerik değil |
+| effort | varchar(20), null | Modelin düşünme bütçesi (`low` / `medium` / `high`) |
 | created_at | datetime2 (naive, UTC) | Kayıt zamanı (server_default GETUTCDATE()) |
 
 **CHECK constraint'leri**: `directive_language_ratio`, `exclamation_density`
@@ -161,8 +166,7 @@ tabloyu *ayrı* tutmaktır: davranışsal tablo hiçbir zaman metin taşımaz.
 |---|---|---|
 | id | int identity, PK | |
 | event_id | FK -> interaction_events.id, unique | |
-| model | varchar(120) | Kullanılan model (örn. claude-opus-5) |
-| project | nvarchar(400) | Çalışma dizini / proje |
+| project | nvarchar(400) | Çalışma dizini / proje (tam yol; kısaltılmış hali `interaction_events.project`de) |
 | prompt_text | nvarchar(max) | Kullanıcının promptu (ham) |
 | response_text | nvarchar(max) | Asistanın metin cevabı (ham) |
 | feedback_text | nvarchar(max) | Kullanıcının bir sonraki promptu -- kabul/red sınıflandırmasının kanıtı |

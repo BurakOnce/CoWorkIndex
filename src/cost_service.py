@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.models import Employee, InteractionContent, InteractionEvent, Team, Tool
+from src.models import Employee, InteractionEvent, Team, Tool
 from src.schemas import CostSummary, ToolCostBreakdown
 
 
@@ -31,12 +31,13 @@ def _load_pricing() -> dict:
 
 def _rates_for(pricing: dict, tool_name: str, model: str | None = None) -> dict:
     """Model biliniyorsa (bağlayıcı verisi) modele göre, yoksa araca göre fiyat.
-    `models` bölümündeki anahtarlar model adının ön eki olarak eşleşir
-    (örn. "claude-opus" -> "claude-opus-5")."""
+    `models` bölümündeki anahtarlar model adı içinde geçen bir alt dize olarak
+    eşleşir (örn. "claude-opus" -> "claude-opus-5", "gpt-4.1" -> "copilot/gpt-4.1"
+    -- bazı bağlayıcılar vendor/model biçiminde bir tanımlayıcı gönderir)."""
     if model:
         model_l = model.lower()
         for prefix, rates in (pricing.get("models") or {}).items():
-            if model_l.startswith(str(prefix).lower()):
+            if str(prefix).lower() in model_l:
                 return rates
     return pricing.get(tool_name, pricing["_default"])
 
@@ -67,11 +68,7 @@ async def compute_cost_summary(
     """
     pricing = _load_pricing()
 
-    query = (
-        select(InteractionEvent, Tool.name, InteractionContent.model)
-        .join(Tool, Tool.id == InteractionEvent.tool_id)
-        .outerjoin(InteractionContent, InteractionContent.event_id == InteractionEvent.id)
-    )
+    query = select(InteractionEvent, Tool.name).join(Tool, Tool.id == InteractionEvent.tool_id)
     if project:
         query = query.where(InteractionEvent.project == project)
 
@@ -106,9 +103,9 @@ async def compute_cost_summary(
     accepted_tokens = 0
     by_tool: dict[str, dict] = {}
 
-    for event, tool_name, model in rows:
+    for event, tool_name in rows:
         tokens = event.input_tokens + event.output_tokens
-        cost = _event_cost_usd(pricing, tool_name, event.input_tokens, event.output_tokens, model)
+        cost = _event_cost_usd(pricing, tool_name, event.input_tokens, event.output_tokens, event.model)
 
         total_input += event.input_tokens
         total_output += event.output_tokens
@@ -164,10 +161,9 @@ async def compute_cost_summary_by_employee(
     pricing = _load_pricing()
 
     query = (
-        select(InteractionEvent, Tool.name, Employee.id, Employee.full_name, InteractionContent.model)
+        select(InteractionEvent, Tool.name, Employee.id, Employee.full_name)
         .join(Tool, Tool.id == InteractionEvent.tool_id)
         .join(Employee, Employee.id == InteractionEvent.employee_id)
-        .outerjoin(InteractionContent, InteractionContent.event_id == InteractionEvent.id)
     )
     if project:
         query = query.where(InteractionEvent.project == project)
@@ -186,9 +182,9 @@ async def compute_cost_summary_by_employee(
 
     per_employee: dict[int, dict] = {}
 
-    for event, tool_name, employee_id, full_name, model in rows:
+    for event, tool_name, employee_id, full_name in rows:
         tokens = event.input_tokens + event.output_tokens
-        cost = _event_cost_usd(pricing, tool_name, event.input_tokens, event.output_tokens, model)
+        cost = _event_cost_usd(pricing, tool_name, event.input_tokens, event.output_tokens, event.model)
 
         bucket = per_employee.setdefault(
             employee_id,

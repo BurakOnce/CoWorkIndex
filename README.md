@@ -30,13 +30,18 @@ The company roster is currently fixed-size: **50 employees** (`FIXED_EMPLOYEE_CO
 
 2. **Real Data Import (Excel)** -- "Download Template" downloads a `.xlsx` template listing the existing 50 employees on a reference sheet, with a single `events` sheet to fill in and upload (`POST /ingestion/import-excel`). This represents the scenario where, in a real company, this data typically comes from a periodic export from an AI gateway/browser extension's behavioral log -- **the template contains no content/text column either**. Employees are matched only by name against the existing roster (an unmatched row is reported as an error, no new employee is created).
 
-## Live Integration: Claude
+## Live Integration: Multiple AI Agents
 
-The product is not limited to synthetic or Excel data. A **connector** (`connectors/claude_code`) plugs into Claude Code: every real prompt/response exchange the user has with Claude is captured through a Claude Code hook, sent to `POST /connectors/exchanges`, turned into behavioral signals and shown in the dashboard's **Live: Claude** tab -- within seconds, without any manual step. Historical sessions can be imported in one command.
+The product is not limited to synthetic or Excel data. **Connectors** plug into real AI tools and ship every prompt/response exchange to the shared `POST /connectors/exchanges` endpoint, which turns it into behavioral signals shown in the dashboard's **Live: Agents** tab -- filterable by source, employee and project, all in one place. Two connectors exist today:
+
+- **Claude Code** (`connectors/claude_code`) -- reads Claude Code's own session transcript and reacts to a `Stop`/`UserPromptSubmit` hook, so capture is near-instant. Fully working and tested end-to-end.
+- **GitHub Copilot Chat** (`connectors/copilot_chat`) -- reads VS Code's local Copilot Chat session storage and polls it for changes (Copilot has no hook API). This connector's parsing is best-effort against an undocumented, internal VS Code format that hasn't yet been verified against a real conversation on this machine -- see [connectors/README.md](connectors/README.md#github-copilot-chat-connectorscopilot_chat) for the exact caveats.
+
+Adding a third AI tool means writing one more connector that produces the same payload shape and posts it with its own `source` name -- the API, scoring, cost calculation and dashboard are already source-agnostic. Historical sessions can be imported in one command per connector.
 
 Two things are new compared with the synthetic pipeline:
 
-* **The signal logic is AI-driven.** Deterministic signals (tokens, cost, turn index, sentence statistics, tool calls, interruptions, permission denials) are measured locally; judgment signals (accept/edit/reject, disagreement, persuasion direction, outcome, critical checking, task type, tone) are classified by Claude when an `ANTHROPIC_API_KEY` is configured, with rule-based heuristics as fallback. Both verdicts are stored side by side so every classification is auditable.
+* **The signal logic is AI-driven.** Deterministic signals (tokens, cost, turn index, sentence statistics, tool calls, interruptions, permission denials) are measured locally; judgment signals (accept/edit/reject, disagreement, persuasion direction, outcome, critical checking, task type, tone) are classified by Claude when an `ANTHROPIC_API_KEY` is configured, with rule-based heuristics as fallback -- regardless of which AI tool produced the interaction being classified. Both verdicts are stored side by side so every classification is auditable.
 
 * **Content capture is a switch, not a dogma.** With `CAPTURE_CONTENT=true` the raw prompt, response and next prompt are stored in a separate `interaction_contents` table (full-access mode -- answers "how much can such a product see?": everything). With `CAPTURE_CONTENT=false` the same connector yields only the behavioral rows and the product is content-free again. `interaction_events` itself never carries text.
 

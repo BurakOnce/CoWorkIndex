@@ -26,9 +26,11 @@ async def main(dry_run: bool) -> None:
             await session.execute(select(InteractionEvent.id).where(InteractionEvent.source.is_(None)))
         ).scalars().all()
         print(f"sentetik event: {len(synthetic_events)}")
-        # pytest'in ürettiği bağlayıcı fixture'ları ("Test Connector <id>")
+        # pytest'in ürettiği bağlayıcı fixture'ları ("Test Connector <id>",
+        # "Test Copilot <id>", ilerideki bağlayıcılar da aynı "Test <Kaynak> "
+        # önekini kullanmalı ki burada tek desenle yakalansın).
         test_employee_ids = (
-            await session.execute(select(Employee.id).where(Employee.full_name.like("Test Connector%")))
+            await session.execute(select(Employee.id).where(Employee.full_name.like("Test %")))
         ).scalars().all()
         print(f"test fixture çalışanı: {len(test_employee_ids)}")
         if not dry_run:

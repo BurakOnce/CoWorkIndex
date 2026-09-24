@@ -12,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from connectors.claude_code.transcript import parse_transcript
 from src.analysis.heuristics import heuristic_signals, text_stats
 from src.main import app
+from src.routers.connectors import project_short_name
 
 
 def _line(**kwargs) -> str:
@@ -29,7 +30,7 @@ def _write_transcript(tmp_path: Path, sid: str = "sess-1234") -> Path:
         # Claude Code aynı API cevabını blok başına ayrı satıra yazar; usage tekrar eder
         _line(
             type="assistant", uuid="a1", sessionId=sid, timestamp="2026-09-20T10:00:05.000Z",
-            requestId="req_1",
+            requestId="req_1", effort="high",
             message={
                 "role": "assistant", "model": "claude-opus-5",
                 "content": [{"type": "text", "text": "Tabii, çeviriyorum."}],
@@ -103,6 +104,7 @@ def test_parse_transcript_groups_exchanges(tmp_path: Path):
     assert first.to_payload()["usage"]["api_requests"] == 2
     assert first.feedback_text.startswith("Hayır bu yanlış")
     assert first.model == "claude-opus-5"
+    assert first.effort == "high"
     assert first.ended_at == "2026-09-20T10:00:09.000Z"
 
     assert second.tool_calls[0].denied is True and second.tool_calls[0].is_error is True
@@ -141,6 +143,23 @@ def test_heuristic_signals_feedback_drives_action():
     assert checked["critical_check_flag"] is True
 
 
+def test_project_short_name_uses_project_root_not_deepest_folder():
+    # Bir projenin İÇİNDEKİ alt klasörde çalışırken (rapor sayfası, notebook,
+    # görsel klasörü) her turu ayrı bir "proje" gibi göstermemeli -- gerçek
+    # veriyle karşılaşılan bug.
+    assert project_short_name("C:\\Projects\\Python\\Mihenk") == "Mihenk"
+    assert project_short_name("C:\\Projects\\Python\\Mihenk\\fabric\\notebooks") == "Mihenk"
+    assert (
+        project_short_name(
+            "C:\\Projects\\Python\\Mihenk\\powerbi\\mihenk_1.Report\\definition\\pages\\6f7a8b9c\\visuals\\p1rimary00stackedbar6"
+        )
+        == "Mihenk"
+    )
+    # Dil klasörü hiç yoksa (bilinmeyen bir düzen), son segmente düşer.
+    assert project_short_name("C:\\Users\\burak\\OneDrive\\Masaüstü\\fabric ss's") == "fabric ss's"
+    assert project_short_name(None) is None
+
+
 @pytest_asyncio.fixture(loop_scope="session")
 async def client():
     transport = ASGITransport(app=app)
@@ -175,6 +194,7 @@ async def test_connector_ingest_upsert_and_feed(client: AsyncClient, tmp_path: P
     newest = feed[0]
     assert newest["source"] == "claude_code"
     assert newest["dialogue_turn_count"] == 2
+    assert newest["model"] == "claude-opus-5"
     assert newest["action_type"] == "rejected"  # araç reddi
     assert newest["employee_full_name"] == f"Test Connector {run_id}"
     if first["capture_content"]:

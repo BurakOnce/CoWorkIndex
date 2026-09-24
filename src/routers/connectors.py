@@ -45,14 +45,32 @@ from src.scoring_service import compute_and_store_employee_score
 router = APIRouter(prefix="/connectors", tags=["connectors"])
 
 
+# Kullanıcının klasör düzeninde diller bir üst klasör oluşturur (örn.
+# ".../Python/Mihenk/powerbi/.../pages/<guid>/visuals/..."). Sadece son
+# klasörü almak, bir projenin İÇİNDEKİ alt klasörlerde çalışırken (rapor
+# sayfaları, notebook'lar, görsel klasörleri) her turu ayrı bir "proje"
+# gibi göstermeye yol açar -- bu yüzden önce bu dil klasörlerinden birini
+# arayıp asıl proje kökünü (bir sonraki segment) buluyoruz.
+_PROJECT_ROOT_MARKERS = ("python", "javascript", "typescript", "react", "node", "java", "csharp")
+
+
 def project_short_name(path: str | None) -> str | None:
-    """"C:\\Projects\\Python\\CoWorkIndex" -> "CoWorkIndex". Aynı proje farklı
-    klasör yollarından (örn. taşınmış/fork'lanmış) gelse de tek isim altında
+    """"C:\\Projects\\Python\\CoWorkIndex\\powerbi\\pages\\<guid>" -> "CoWorkIndex".
+    Aynı proje farklı klasör yollarından (örn. taşınmış/fork'lanmış, ya da
+    projenin derinlerindeki bir alt klasör) gelse de tek isim altında
     toplanır; tam yol içerik tablosunda saklı kalır."""
     if not path:
         return None
-    name = path.replace("\\", "/").rstrip("/").split("/")[-1].strip()
-    return name[:200] or None
+    parts = [p for p in path.replace("\\", "/").rstrip("/").split("/") if p]
+    if not parts:
+        return None
+    lowered = [p.lower() for p in parts]
+    for marker in _PROJECT_ROOT_MARKERS:
+        if marker in lowered:
+            idx = lowered.index(marker)
+            if idx + 1 < len(parts):
+                return parts[idx + 1][:200]
+    return parts[-1][:200] or None
 
 
 async def _resolve_employee(session: AsyncSession, full_name: str, team_name: str | None, role: str | None) -> Employee:
@@ -138,6 +156,8 @@ async def ingest_exchanges(payload: ConnectorExchangeBatch, session: AsyncSessio
             "source": payload.source,
             "external_id": ex.external_id,
             "project": project_short_name(ex.project),
+            "model": ex.model,
+            "effort": ex.effort,
             **fields,
         }
         if existing is None:
@@ -155,7 +175,6 @@ async def ingest_exchanges(payload: ConnectorExchangeBatch, session: AsyncSessio
 
         if settings.capture_content:
             content = existing_content or InteractionContent(event_id=event.id)
-            content.model = ex.model
             content.project = ex.project
             content.prompt_text = ex.prompt_text
             content.response_text = ex.response_text
@@ -246,16 +265,14 @@ async def list_interactions(
             input_tokens=event.input_tokens,
             output_tokens=event.output_tokens,
             cost_usd=round(
-                _event_cost_usd(
-                    pricing, tool_name, event.input_tokens, event.output_tokens,
-                    content.model if content is not None else None,
-                ),
+                _event_cost_usd(pricing, tool_name, event.input_tokens, event.output_tokens, event.model),
                 6,
             ),
         )
         item.project = event.project
+        item.model = event.model
+        item.effort = event.effort
         if content is not None:
-            item.model = content.model
             item.classifier = content.classifier
             if include_content:
                 item.prompt_text = content.prompt_text

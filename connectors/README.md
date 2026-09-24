@@ -31,8 +31,8 @@ python -m connectors.claude_code.backfill --employee "Burak Önce"
 ```
 
 Restart Claude Code after installing the hook. From then on every
-exchange with Claude appears in the dashboard's **Live: Claude** tab within
-seconds.
+exchange with Claude appears in the dashboard's **Live: Agents** tab within
+seconds, tagged `source=claude_code`.
 
 ### Configuration (API side, `.env` / docker-compose)
 
@@ -46,7 +46,7 @@ seconds.
 ### What is extracted from one exchange
 
 Deterministic (always local): input/output/cache tokens and USD cost, turn
-index in session, model, project folder, git branch, timestamps, sentence
+index in session, agent model and effort/thinking level (e.g. "claude-sonnet-5", "high"), project folder, git branch, timestamps, sentence
 count, average sentence length, exclamation density, politeness markers,
 imperative (directive) ratio, tool calls (name + target), tool errors and
 permission denials, interruptions.
@@ -60,3 +60,47 @@ tool denials), `had_disagreement`, `persuasion_direction`,
 
 Hard evidence overrides the model: an interrupted turn or a denied tool call
 is always `rejected` / `abandoned`.
+
+## GitHub Copilot Chat (`connectors/copilot_chat`)
+
+**Status: best-effort, unverified against a real conversation.** VS Code
+stores Copilot Chat sessions as JSON under
+`<VS Code user dir>/workspaceStorage/<hash>/chatSessions/*.jsonl` (one file
+per session, despite the extension). This is **not a documented/stable
+API** -- it's VS Code's own internal storage and can change between
+releases. There is also no hook mechanism for Copilot Chat (unlike Claude
+Code), so "live" capture works by polling those files for changes instead
+of reacting to an event.
+
+| Piece | What it does |
+|---|---|
+| `session_store.py` | Parses one session file into `Exchange` objects. Deliberately defensive: tries several plausible shapes for the message/response fields and skips a turn it can't recognize rather than raising. |
+| `watcher.py` | Polls `chatSessions/*.jsonl` every N seconds (mtime-based) and syncs changed sessions. Run it in a terminal you leave open, or as a startup task. |
+| `backfill.py` | One-shot import of all current sessions (`--debug` lists files that parsed as empty/unrecognized -- useful for checking the format assumptions against real data). |
+| `client.py` | Same HTTP + change-detection pattern as the Claude Code connector, under its own state files (`~/.cowork_index/copilot_chat_*`). |
+
+### Setup
+
+```bash
+# 1. API must be running (docker compose up -d)
+# 2. one-shot import of whatever Copilot Chat sessions already exist
+python -m connectors.copilot_chat.backfill --employee "Burak Önce" --team "Veri & Analitik"
+# 3. for live capture, leave this running in a terminal
+python -m connectors.copilot_chat.watcher --employee "Burak Önce"
+```
+
+### Known limitations
+
+- **No token/cost data.** VS Code's local session store does not appear to
+  record token usage the way Claude Code's transcript does, so
+  `input_tokens`/`output_tokens` are `0` for Copilot-sourced events until a
+  usage field is found in real data. Cost will show as $0 for this source.
+- **No hook, so not truly real-time.** The watcher's polling interval
+  (default 15s) is the capture latency, not instant like Claude Code's hook.
+- **Schema unverified.** This machine has never had a real Copilot Chat
+  conversation to test against (sessions were empty at implementation
+  time). After your first real conversation, run
+  `python -m connectors.copilot_chat.backfill --dry-run --debug` and check
+  the exchange count/content look right; the field-extraction logic in
+  `session_store.py` is the place to adjust if not.
+

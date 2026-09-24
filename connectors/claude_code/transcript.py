@@ -53,6 +53,7 @@ class Exchange:
     started_at: str
     ended_at: str | None
     model: str | None
+    effort: str | None
     prompt_text: str
     response_text: str
     feedback_text: str | None
@@ -193,6 +194,7 @@ def parse_transcript(path: str | Path, hook_prompt: str | None = None) -> list[E
                 started_at=timestamp or "",
                 ended_at=None,
                 model=None,
+                effort=None,
                 prompt_text=text,
                 response_text="",
                 feedback_text=None,
@@ -217,6 +219,9 @@ def parse_transcript(path: str | Path, hook_prompt: str | None = None) -> list[E
         current.assistant_message_count += 1
         current.ended_at = timestamp or current.ended_at
         current.model = message.get("model") or current.model
+        # "effort" (low/medium/high) Claude Code'un kendi düşünme bütçesi
+        # ayarıdır; obj üzerinde (message içinde değil) durur.
+        current.effort = obj.get("effort") or current.effort
         text = _text_blocks(content)
         if text.strip():
             current.response_text = (current.response_text + "\n" + text).strip()

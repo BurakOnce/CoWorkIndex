@@ -64,5 +64,27 @@ services:
     command: >
       streamlit run dashboard/app.py --server.address=0.0.0.0 --server.port=8501
 
+  # Copilot Chat canlı akışı: Copilot'ta hook olmadığı için VS Code'un yerel
+  # oturum klasörü salt-okunur bağlanır ve 10 sn'de bir değişiklik aranır.
+  copilot-watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cowork-index-copilot-watcher
+    restart: unless-stopped
+    environment:
+      VSCODE_USER_DIR: /vscode
+      COWORK_API_BASE_URL: "http://api:8000"
+      COWORK_EMPLOYEE_NAME: "${COWORK_EMPLOYEE_NAME:-Burak Önce}"
+      COWORK_TEAM_NAME: "${COWORK_TEAM_NAME:-Veri & Analitik}"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - "${VSCODE_USER_DIR_HOST:-${APPDATA}/Code/User}:/vscode:ro"
+      - cowork_watcher_state:/root/.cowork_index
+    depends_on:
+      - api
+    command: python -m connectors.copilot_chat.watcher --interval 10
+
 volumes:
   cowork_mssql_data:
+  cowork_watcher_state:

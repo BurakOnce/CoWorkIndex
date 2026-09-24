@@ -181,6 +181,11 @@ class InteractionEvent(Base):
     # Proje adı (klasörün son parçası). Bağlam meta verisidir; ?project=
     # filtresiyle skor ve maliyet proje bazında analiz edilebilir.
     project: Mapped[str | None] = mapped_column(Unicode(200), nullable=True, index=True)
+    # Etkileşimi hangi AI ajanı/modeli işledi (örn. "claude-sonnet-5") ve
+    # hangi düşünme bütçesiyle (low/medium/high). Davranışsal bağlam --
+    # içerik değil -- bu yüzden capture_content kapalıyken de tutulur.
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    effort: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW_SERVER_DEFAULT)
 

@@ -168,6 +168,14 @@ STRINGS = {
         "live_feedback": "User's next prompt (feedback used for classification)",
         "live_tools": "Tools used",
         "live_signals": "Extracted signals (heuristic vs. Claude)",
+        "col_tool_name": "Name",
+        "col_tool_target": "Target",
+        "col_tool_is_error": "Is Error",
+        "col_tool_denied": "Denied",
+        "col_sig_signal": "Signal",
+        "col_sig_heuristic": "Heuristic Analysis",
+        "col_sig_claude": "AI Analysis",
+        "col_sig_final": "Final",
         "live_no_content": "Content not captured for this interaction (capture disabled).",
         "live_what_header": "What can be extracted from an AI agent interaction?",
         "live_what_markdown": """
@@ -414,6 +422,14 @@ efficiency are presented as a separate, complementary analysis layer. The
         "live_feedback": "Kullanıcının sonraki promptu (sınıflandırmada geri bildirim olarak kullanıldı)",
         "live_tools": "Kullanılan araçlar",
         "live_signals": "Çıkarılan sinyaller (heuristik vs. Claude)",
+        "col_tool_name": "İsim",
+        "col_tool_target": "Hedef",
+        "col_tool_is_error": "Hata Var mı",
+        "col_tool_denied": "Reddedildi mi",
+        "col_sig_signal": "Sinyal",
+        "col_sig_heuristic": "Heuristik Analiz",
+        "col_sig_claude": "AI Analiz",
+        "col_sig_final": "Nihai",
         "live_no_content": "Bu etkileşim için içerik yakalanmadı (yakalama kapalı).",
         "live_what_header": "Bir AI ajanı etkileşiminden neler çıkarılabilir?",
         "live_what_markdown": """
@@ -1292,7 +1308,13 @@ with live_tab:
                 st.text_area("feedback", row.get("feedback_text") or "", height=90, label_visibility="collapsed", key=f"f{row['event_id']}")
             if row.get("tool_calls"):
                 st.markdown(f"**{S('live_tools')}**")
-                st.dataframe(pd.DataFrame(row["tool_calls"]), use_container_width=True, hide_index=True)
+                tools_df = pd.DataFrame(row["tool_calls"]).rename(columns={
+                    "name": S("col_tool_name"),
+                    "target": S("col_tool_target"),
+                    "is_error": S("col_tool_is_error"),
+                    "denied": S("col_tool_denied"),
+                })
+                st.dataframe(tools_df, use_container_width=True, hide_index=True)
             if row.get("signals"):
                 st.markdown(f"**{S('live_signals')}**")
                 sig = row["signals"]
@@ -1300,10 +1322,10 @@ with live_tab:
                 for key in sig.get("final", {}):
                     cmp_rows.append(
                         {
-                            "signal": key,
-                            "heuristic": sig.get("heuristic", {}).get(key),
-                            "claude": (sig.get("claude") or {}).get(key),
-                            "final": sig["final"].get(key),
+                            S("col_sig_signal"): key,
+                            S("col_sig_heuristic"): sig.get("heuristic", {}).get(key),
+                            S("col_sig_claude"): (sig.get("claude") or {}).get(key),
+                            S("col_sig_final"): sig["final"].get(key),
                         }
                     )
                 st.dataframe(pd.DataFrame(cmp_rows), use_container_width=True, hide_index=True)
